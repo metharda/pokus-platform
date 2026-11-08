@@ -32,12 +32,12 @@ def _parser() -> argparse.ArgumentParser:
     b = checks.add_parser("build", help="pokus-infrastructure's build of the release")
     b.add_argument("--infra", type=Path, required=True, help="pokus-infrastructure at INFRA_PIN")
     b.add_argument("--uv", default="uv", help="the uv executable")
-    b.add_argument("--python", default="3.12", help="the Python the build uses")
+    b.add_argument("--python", required=True, help="the Python version the build uses (X.Y.Z)")
     checks.add_parser("verify-todos", help="list the open verification markers")
     g = checks.add_parser("gate", help="every check once, with one summary line")
     g.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
     g.add_argument("--uv", default="uv", help="the uv executable")
-    g.add_argument("--python", default="3.12", help="the Python the build uses")
+    g.add_argument("--python", required=True, help="the Python version the build uses (X.Y.Z)")
     g.add_argument("--verbose", action="store_true", help="print every step's output")
     return parser
 

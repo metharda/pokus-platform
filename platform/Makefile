@@ -1,7 +1,12 @@
 # The Pokus Platform's development targets; CI calls the same ones.
 # INFRA names a checkout of pokus-infrastructure at the commit of INFRA_PIN
-# (the contract and build checks need it). BUILD_PYTHON is the Python the
-# build check builds with (CI: 3.12.15).
+# (the contract and build checks need it).
+#
+# The file BUILD_PYTHON at the repository's root holds the one Python
+# version of the development environment, the build check, the gate and CI.
+# make setup installs it with uv into .python/ (git-ignored); every uv
+# command here uses only that installation and never downloads one, so a
+# missing installation fails instead of falling back to another Python.
 
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -10,8 +15,18 @@ MAKEFLAGS += --no-builtin-rules
 
 UV ?= uv
 INFRA ?=
-BUILD_PYTHON ?= 3.12
 VERBOSE ?=
+
+ifneq ($(origin BUILD_PYTHON),undefined)
+$(error BUILD_PYTHON is read from the file ../BUILD_PYTHON only, not from the $(origin BUILD_PYTHON))
+endif
+BUILD_PYTHON := $(file < ../BUILD_PYTHON)
+ifeq ($(strip $(BUILD_PYTHON)),)
+$(error ../BUILD_PYTHON is missing or empty)
+endif
+export UV_PYTHON_INSTALL_DIR := $(CURDIR)/.python
+export UV_MANAGED_PYTHON := 1
+export UV_PYTHON_DOWNLOADS := manual
 
 RUN := $(UV) run --locked --all-packages --group contract
 CHECK := PYTHONPATH=$(abspath ../ci) $(RUN) python -m potka_ci
@@ -23,8 +38,9 @@ help: ## List the targets
 	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 .PHONY: setup
-setup: ## The locked development environment (.venv), every package and the contract group
-	$(UV) sync --locked --all-packages --group contract
+setup: ## Python (../BUILD_PYTHON) in .python/, then the locked development environment (.venv)
+	$(UV) python install --no-bin "$(BUILD_PYTHON)"
+	$(UV) sync --locked --all-packages --group contract --python "$(BUILD_PYTHON)"
 
 .PHONY: lock
 lock: ## Update uv.lock

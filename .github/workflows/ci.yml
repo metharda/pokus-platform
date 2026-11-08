@@ -14,6 +14,9 @@
 # a shell. Their range: on a branch other than main, every commit not on
 # main yet (origin/main..after); on main, the push's before..after (the
 # whole history when before is the zero hash).
+#
+# The Python of every job is the version in BUILD_PYTHON, which make setup
+# installs with uv; the workflow names no version of its own.
 name: ci
 
 on:
@@ -23,10 +26,6 @@ on:
 
 permissions:
   contents: read
-
-env:
-  # The Python pokus-infrastructure builds the release with.
-  UV_PYTHON: "3.12.15"
 
 jobs:
   lint:
@@ -113,7 +112,7 @@ jobs:
         with:
           version: "0.12.23"
           enable-cache: false
-      - run: make setup build INFRA=../../pokus-infrastructure BUILD_PYTHON="$UV_PYTHON"
+      - run: make setup build INFRA=../../pokus-infrastructure
 
   privacy:
     runs-on: ubuntu-24.04

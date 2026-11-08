@@ -15,12 +15,19 @@ The checkout must be at ``INFRA_PIN``. The phases run without the caller's
 ``UV_*`` variables, with the ones the project sets for its build. The
 offline phases run with ``UV_OFFLINE=1`` and ``--offline``; unlike on a lab
 host, they do not run in a network namespace.
+
+Like pokus-infrastructure's build, every phase gets an interpreter's path,
+not a version: the version is resolved first, in the caller's environment
+(where uv finds its own installations, before the phases drop the ``UV_*``
+variables), with ``uv python find``, and the interpreter must report exactly
+that version.
 """
 
 from __future__ import annotations
 
 import importlib
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -33,6 +40,88 @@ from potka_ci.outcome import Outcome
 from potka_ci.repo import GitError, git, stage_release
 
 VALIDATOR_PATH = Path("tools") / "platform"
+VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+# What the interpreter reports: its version, and whether it is a virtual
+# environment's.
+PROBE = "import sys; print('%d.%d.%d' % sys.version_info[:3], sys.prefix != sys.base_prefix)"
+
+
+class InterpreterError(Exception):
+    """The build's Python cannot be resolved to a fitting interpreter.
+
+    Attributes:
+        output: What the failed command printed, line by line.
+    """
+
+    def __init__(self, message: str, output: list[str] | None = None) -> None:
+        """Keep the message and the failed command's output.
+
+        Args:
+            message: What failed.
+            output: The command's output, line by line.
+        """
+        super().__init__(message)
+        self.output = output or []
+
+
+def interpreter(uv: str, version: str, cwd: Path) -> str:
+    """The absolute path of the Python VERSION the build runs with.
+
+    uv looks it up (``uv python find VERSION``, uv-managed installations
+    included) in the caller's environment, with its ``UV_*`` variables, but
+    without ``VIRTUAL_ENV`` and from CWD, outside any project: inside one,
+    uv returns the project's virtual environment, and the build, like
+    pokus-infrastructure's, takes a base interpreter.
+
+    Args:
+        uv: The uv executable.
+        version: The Python version, in full (``X.Y.Z``).
+        cwd: A directory outside any project.
+
+    Returns:
+        The interpreter's absolute path.
+
+    Raises:
+        InterpreterError: The version is not in full, cannot be resolved,
+            or resolves to an interpreter of another version or a virtual
+            environment's.
+    """
+    if not VERSION_RE.fullmatch(version):
+        raise InterpreterError(f"the build Python must be a full version (X.Y.Z), not '{version}'")
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    command = [uv, "python", "find", version]
+    shown = " ".join(command)
+    try:
+        found = subprocess.run(
+            command, cwd=cwd, env=env, capture_output=True, text=True, check=False
+        )
+    except OSError as exc:
+        raise InterpreterError(f"Python {version} cannot be resolved: {shown}: {exc}") from exc
+    if found.returncode != 0:
+        raise InterpreterError(
+            f"Python {version} cannot be resolved: {shown}: exit status {found.returncode}",
+            (found.stdout + found.stderr).rstrip().splitlines(),
+        )
+    path = found.stdout.strip()
+    if not os.path.isabs(path):
+        raise InterpreterError(f"Python {version}: {shown} printed no absolute path: '{path}'")
+    try:
+        probe = subprocess.run(
+            [path, "-I", "-c", PROBE], cwd=cwd, env=env, capture_output=True, text=True, check=False
+        )
+    except OSError as exc:
+        raise InterpreterError(f"Python {version}: {path} cannot run: {exc}") from exc
+    reported = probe.stdout.split()
+    if probe.returncode != 0 or len(reported) != 2:
+        raise InterpreterError(f"Python {version}: {path} does not report its version")
+    if reported[0] != version:
+        raise InterpreterError(f"Python {version}: {path} reports Python {reported[0]}")
+    if reported[1] != "False":
+        raise InterpreterError(
+            f"Python {version}: {path} is a virtual environment's; the build takes a base"
+            " interpreter"
+        )
+    return path
 
 
 def _modules(infra: Path) -> dict[str, ModuleType]:
@@ -93,14 +182,14 @@ def phases(m: dict[str, ModuleType], stage: Path) -> list[tuple[str, dict[str, s
     return steps
 
 
-def run(root: Path, infra: Path | None, uv: str = "uv", python: str = "3.12") -> Outcome:
+def run(root: Path, infra: Path | None, uv: str = "uv", python: str = "") -> Outcome:
     """Build the staged release as pokus-infrastructure does, and check it.
 
     Args:
         root: The working tree.
         infra: The pokus-infrastructure checkout at the pin, or None.
         uv: The uv executable.
-        python: The Python the build uses (a version or a path).
+        python: The Python version the build uses, in full (``X.Y.Z``).
 
     Returns:
         The outcome (skipped without a checkout).
@@ -123,6 +212,11 @@ def run(root: Path, infra: Path | None, uv: str = "uv", python: str = "3.12") ->
     deploy, validate, contract = m["deploy"], m["validate"], m["contract"]
     lines: list[str] = []
     with tempfile.TemporaryDirectory(prefix="potka-build-") as tmp:
+        try:
+            path = interpreter(uv, python, Path(tmp))
+        except InterpreterError as exc:
+            return Outcome("failed", [str(exc), *exc.output])
+        lines.append(f"python {python}: {path}")
         stage = stage_release(root, Path(tmp) / "release")
         before = deploy.snapshot(stage)
         base = {
@@ -131,7 +225,7 @@ def run(root: Path, infra: Path | None, uv: str = "uv", python: str = "3.12") ->
             "UV_NO_CONFIG": "1",
         }
         for name, extra, args in phases(m, stage):
-            argv = [uv, *deploy.UV_SYNC, *args, "--python", python]
+            argv = [uv, *deploy.UV_SYNC, *args, "--python", path]
             inherited = {k: v for k, v in os.environ.items() if not k.startswith("UV_")}
             done = subprocess.run(
                 argv,

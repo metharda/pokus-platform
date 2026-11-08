@@ -116,7 +116,7 @@ def run(
     root: Path,
     infra: Path | None,
     uv: str = "uv",
-    python: str = "3.12",
+    python: str = "",
     verbose: bool = False,
     printer: Callable[[str], None] = print,
     environ: Mapping[str, str] | None = None,
@@ -127,7 +127,7 @@ def run(
         root: The working tree.
         infra: The pokus-infrastructure checkout at the pin, or None.
         uv: The uv executable (for the build check).
-        python: The Python the build check uses.
+        python: The Python version the build check uses, in full (``X.Y.Z``).
         verbose: Print every step's output.
         printer: Where the lines go.
         environ: The environment the privacy and commit checks read the

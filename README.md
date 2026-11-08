@@ -45,8 +45,10 @@ the release with the flags of that commit.
 
 ## Development
 
-Requirements: Linux, git, GNU make, uv 0.12.23 or a later 0.12 release, and
-Python 3.12 (uv installs it if it is missing).
+Requirements: Linux, git, GNU make 4.2 or later, and uv 0.12.23 or a later
+0.12 release. `make -C platform setup` installs the Python version named in
+`BUILD_PYTHON` with uv into `platform/.python/`; every target, the build
+check and CI use that interpreter and no other.
 
 ```bash
 make -C platform setup
