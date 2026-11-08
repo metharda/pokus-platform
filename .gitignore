@@ -1,0 +1,12 @@
+# Development environments and caches
+.venv/
+.agent-venvs/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Build outputs
+/build/
+/platform/build/
