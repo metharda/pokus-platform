@@ -1,0 +1,49 @@
+# The Pokus Platform's uv workspace: one package per service in packages/.
+# The release is built from uv.lock with the "build" group's backend; the
+# "dev" and "contract" groups are for development and CI only.
+
+[tool.uv]
+required-version = ">=0.12.23,<0.13"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[dependency-groups]
+build = ["uv_build==0.12.24"]
+dev = [
+  "ruff==0.16.10",
+  "mypy==2.4.0",
+  "pytest==9.1.1",
+  "actionlint-py==1.7.12.25",
+  "shellcheck-py==0.11.0.1",
+  "types-pyyaml==6.0.12.20260906",
+  "types-jsonschema==4.26.0.20260518",
+]
+contract = [
+  "pyyaml==6.0.3",
+  "jsonschema==4.26.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "RUF", "D"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "../ci"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "../ci/tests"]
+pythonpath = ["../ci"]
+addopts = ["-ra", "--strict-markers"]
