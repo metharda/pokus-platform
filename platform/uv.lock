@@ -5,6 +5,12 @@ requires-python = "==3.12.*"
 [manifest]
 members = [
     "potka-agent",
+    "potka-evaluator",
+    "potka-executor",
+    "potka-gateway",
+    "potka-injector",
+    "potka-orchestrator",
+    "potka-verifier",
 ]
 
 [manifest.dependency-groups]
@@ -212,6 +218,36 @@ wheels = [
 name = "potka-agent"
 version = "0.0.0"
 source = { editable = "packages/potka-agent" }
+
+[[package]]
+name = "potka-evaluator"
+version = "0.0.0"
+source = { editable = "packages/potka-evaluator" }
+
+[[package]]
+name = "potka-executor"
+version = "0.0.0"
+source = { editable = "packages/potka-executor" }
+
+[[package]]
+name = "potka-gateway"
+version = "0.0.0"
+source = { editable = "packages/potka-gateway" }
+
+[[package]]
+name = "potka-injector"
+version = "0.0.0"
+source = { editable = "packages/potka-injector" }
+
+[[package]]
+name = "potka-orchestrator"
+version = "0.0.0"
+source = { editable = "packages/potka-orchestrator" }
+
+[[package]]
+name = "potka-verifier"
+version = "0.0.0"
+source = { editable = "packages/potka-verifier" }
 
 [[package]]
 name = "pygments"
