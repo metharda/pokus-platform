@@ -1,24 +1,20 @@
-"""The entry point of the `exec` service, which is not implemented yet.
+"""The entry point of the `exec` service (executor), which is not implemented yet.
 
-It writes one JSON log line to standard output and exits with status 1, so
-a deployment of this release never reports the service as running.
+It serves its sockets from systemd with ``/healthz`` and ``/readyz``, the
+latter answering 503 "not implemented", and nothing else.
 """
 
 from __future__ import annotations
 
-import json
-import sys
+from potka_core.server import run_not_implemented
 
 SERVICE = "exec"
-MESSAGE = "not implemented in this release"
 
 
 def main() -> int:
-    """Log that the service is not implemented, and fail.
+    """Serve the service's sockets until SIGTERM.
 
     Returns:
-        The exit status: 1.
+        The exit status: 0 after a graceful stop, 1 when the service cannot start.
     """
-    record = {"level": "error", "service": SERVICE, "message": MESSAGE}
-    sys.stdout.write(json.dumps(record, sort_keys=True) + "\n")
-    return 1
+    return run_not_implemented(SERVICE)
