@@ -27,6 +27,8 @@ from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
 WORKFLOW = Path(".github") / "workflows" / "ci.yml"
+# The shell scripts of platform/, which make lint checks with ShellCheck too.
+SHELL_SCRIPTS = "tests/*/*.sh"
 # pytest's last line: "117 passed, 1 skipped, 2 warnings in 3.04s".
 PYTEST_SUMMARY_RE = re.compile(r"^=*\s*(?P<counts>\d+ \w+(?:, \d+ \w+)*) in [\d.]+s")
 PYTEST_NOTEWORTHY = ("skipped", "xfailed", "xpassed", "warning", "warnings", "deselected")
@@ -140,6 +142,7 @@ def run(
     code = ["packages", "tests", "../ci"]
     mypy_paths = [str(p.relative_to(platform)) for p in sorted(platform.glob("packages/*/src"))]
     workflow = root / WORKFLOW
+    scripts = [str(p.relative_to(platform)) for p in sorted(platform.glob(SHELL_SCRIPTS))]
     env = os.environ if environ is None else environ
     steps: list[tuple[str, Callable[[], Outcome]]] = [
         ("ruff", lambda: tool("ruff", ["check", *code], platform)),
@@ -151,6 +154,14 @@ def run(
                 tool("actionlint", [str(workflow)], root)
                 if workflow.is_file()
                 else Outcome("skipped", [f"no {WORKFLOW.as_posix()}"])
+            ),
+        ),
+        (
+            "shellcheck",
+            lambda: (
+                tool("shellcheck", scripts, platform)
+                if scripts
+                else Outcome("skipped", [f"no shell script ({SHELL_SCRIPTS})"])
             ),
         ),
         (

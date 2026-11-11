@@ -35,9 +35,10 @@ def test_the_summary_line_and_what_follows_it(repo: Repo, steps: pytest.MonkeyPa
     ok = gate.run(repo.path, None, printer=lines.append)
     assert ok is False
     assert lines == [
-        "gate: 6 passed, 1 failed, 3 skipped (actionlint, contract, build), 1 warnings"
-        " (11 steps; pytest: 12 passed)",
+        "gate: 6 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract, build),"
+        " 1 warnings (12 steps; pytest: 12 passed)",
         "skipped: actionlint: no .github/workflows/ci.yml",
+        "skipped: shellcheck: no shell script (tests/*/*.sh)",
         "skipped: contract: no checkout",
         "skipped: build: no checkout",
         "warning: privacy: no denylist",
@@ -70,7 +71,9 @@ def test_a_step_that_raises_fails_and_the_gate_goes_on(
     steps.setattr(build, "run", broken)
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append) is False
-    assert lines[0].startswith("gate: 6 passed, 2 failed, 2 skipped (actionlint, contract)")
+    assert lines[0].startswith(
+        "gate: 6 passed, 2 failed, 3 skipped (actionlint, shellcheck, contract)"
+    )
     assert "--- build: failed" in lines
     assert lines[-1] == "a.md:1:1: plan-step"
     assert any("ModuleNotFoundError: No module named 'pinka_platform'" in line for line in lines)

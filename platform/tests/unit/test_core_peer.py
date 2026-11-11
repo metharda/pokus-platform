@@ -9,6 +9,7 @@ import socket
 import struct
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import pytest
@@ -270,10 +271,10 @@ print("read", len(groups))
 """
 
 
-@pytest.mark.skipif(os.geteuid() != 0, reason="setting 300 supplementary groups needs root")
-def test_a_real_caller_with_300_groups() -> None:
+def test_a_real_caller_with_300_groups(as_root: Callable[[Sequence[str]], list[str]]) -> None:
+    """Setting 300 supplementary groups needs root: as root, or through sudo -n in CI."""
     done = subprocess.run(  # noqa: S603 (the test's own interpreter and script)
-        [sys.executable, "-c", MANY_GROUPS], capture_output=True, text=True, check=False
+        as_root([sys.executable, "-c", MANY_GROUPS]), capture_output=True, text=True, check=False
     )
     assert done.returncode == 0, done.stderr
     assert done.stdout == "read 300\n"

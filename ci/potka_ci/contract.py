@@ -13,6 +13,9 @@ It checks, with a checkout of pokus-infrastructure:
   files' schemas there, and each schema is the one the model was written
   for (its sha256, recorded here): any other change of a schema at a new
   pin fails until the model is checked against it and the sha256 updated;
+* the PostgreSQL service of the workflow's ``test`` job is the lab's server:
+  the image, tag and digest of the postgres row of
+  ``docs/reference/versions.md`` there;
 * the PyYAML this check runs with is the version the project pins.
 
 potka-core is imported only by the model comparison, so the other checks
@@ -59,6 +62,13 @@ MODELS: tuple[tuple[str, Path, str, str], ...] = (
         "potka_core.endpoints:Endpoints",
         "ac0b3647ad8580da6e68a49e63a3291b5a78450e14e8599d5ced092c4c181275",
     ),
+)
+WORKFLOW = Path(".github") / "workflows" / "ci.yml"
+VERSIONS = Path("docs") / "reference" / "versions.md"
+VERSIONS_POSTGRES_RE = re.compile(r"^\|\s*postgres\s*\|")
+VERSIONS_ROW_RE = re.compile(
+    r"^\|\s*postgres\s*\|\s*`(?P<image>[^`\s]+)`\s*\|\s*`(?P<tag>[^`\s]+)`\s*\|"
+    r"\s*`(?P<digest>sha256:[0-9a-f]{64})`\s*\|"
 )
 PYYAML_PIN_RE = re.compile(r"^pyyaml\s*==\s*(?P<version>[^\s;]+)\s*(?:;.*)?$", re.IGNORECASE)
 
@@ -218,6 +228,38 @@ def model_check(
     ]
 
 
+def database_image(root: Path, infra: Path) -> tuple[list[str], list[str]]:
+    """Whether the ``test`` job's PostgreSQL service is the lab's server.
+
+    Args:
+        root: The working tree (its workflow).
+        infra: The pokus-infrastructure checkout (its versions page).
+
+    Returns:
+        The findings and the lines to show.
+    """
+    try:
+        text = (infra / VERSIONS).read_text(encoding="utf-8")
+    except OSError:
+        return [f"{VERSIONS.as_posix()} is missing in the pokus-infrastructure checkout"], []
+    rows = [line.strip() for line in text.splitlines() if VERSIONS_POSTGRES_RE.match(line.strip())]
+    if len(rows) != 1:
+        return [f"{VERSIONS.as_posix()} has {len(rows)} rows for postgres, not one"], []
+    match = VERSIONS_ROW_RE.match(rows[0])
+    if match is None:
+        return [f"{VERSIONS.as_posix()}'s postgres row is not image, tag and digest"], []
+    lab = f"{match['image']}:{match['tag']}@{match['digest']}"
+    try:
+        workflow = yaml.safe_load((root / WORKFLOW).read_text(encoding="utf-8"))
+        image = workflow["jobs"]["test"]["services"]["postgres"]["image"]
+    except (OSError, KeyError, TypeError, yaml.YAMLError):
+        return [f"{WORKFLOW.as_posix()} names no image for the test job's postgres service"], []
+    if image != lab:
+        where = VERSIONS.as_posix()
+        return [f"the test job's PostgreSQL is {image}, but the lab's ({where}) is {lab}"], []
+    return [], [f"the test job's PostgreSQL is the lab's ({VERSIONS.as_posix()}): {lab}"]
+
+
 def run(root: Path, infra: Path | None) -> Outcome:
     """Check the release against the contract at the pin.
 
@@ -273,6 +315,9 @@ def run(root: Path, infra: Path | None) -> Outcome:
         found, shown = model_check(infra, name, schema, target, digest)
         findings += found
         lines += shown
+    found, shown = database_image(root, infra)
+    findings += found
+    lines += shown
     pinned = infra_pyyaml(infra)
     ours = metadata.version("pyyaml")
     if pinned != ours:

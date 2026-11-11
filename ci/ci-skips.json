@@ -1,0 +1,4 @@
+{
+  "_comment": "The tests that may skip in CI, each with the run it skips in (pytest) and its reason. In CI (CI=true) every other skip fails the job (ci/potka_ci/skip_policy.py). Keep it empty or nearly so: a test that can run in CI runs there.",
+  "skips": []
+}
