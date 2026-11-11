@@ -4,7 +4,9 @@ In the caller's transaction, :func:`seal` marks the run sealed (its phase,
 time, manifest, signature and chain head) and copies its scenario version
 and instance from ``restricted.run_assignments`` into
 ``public.sealed_run_scenarios``. The database checks at commit that the
-two agree.
+two agree, and once the run is sealed refuses every change of its records.
+Sealing takes the run's event lock and checks that the chain head given is
+the run's last event, so no event joins a run after its head was taken.
 """
 
 from __future__ import annotations
@@ -13,11 +15,12 @@ from datetime import datetime
 
 from sqlalchemy import Connection, insert, literal, select, update
 
+from potka_db.events import first_prev_hash, head, lock_run
 from potka_db.tables import run_assignments, runs, sealed_run_scenarios
 
 
 class SealingError(RuntimeError):
-    """The run cannot be sealed: it does not exist, is sealed already, or has no assignment."""
+    """The run cannot be sealed: unknown, sealed already, no assignment, or another chain head."""
 
 
 def seal(
@@ -42,12 +45,18 @@ def seal(
         sealed_ns: The sealing time on the monotonic clock (``t_sealed_ns``).
         manifest_artifact: The sha256 of the run's manifest artifact.
         signature_artifact: The sha256 of the manifest's signature artifact.
-        chain_head: The hash of the run's last event (32 bytes).
+        chain_head: The hash of the run's last event (32 bytes; for a run
+            without events, the sha256 of its ID).
 
     Raises:
-        SealingError: The run is unknown or sealed already, or has no
-            assignment.
+        SealingError: The run is unknown or sealed already, has no
+            assignment, or its last event is not CHAIN_HEAD.
+        ValueError: The connection is not in a READ COMMITTED transaction
+            (:func:`potka_db.events.lock_run`).
     """
+    lock_run(conn, run_id)
+    if chain_head != (head(conn, run_id) or first_prev_hash(run_id)):
+        raise SealingError("the chain head is not the run's last event")
     marked = conn.execute(
         update(runs)
         .where(runs.c.id == run_id, runs.c.sealed_at.is_(None))
