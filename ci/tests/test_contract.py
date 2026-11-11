@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
+import sys
 from importlib import metadata
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import Repo
+from potka_core.endpoints import Endpoints
+from potka_core.principals import Principals
 
 from potka_ci import contract
 
@@ -29,10 +35,20 @@ print("platform potka 0.0.0 (python-uv)")
 
 
 @pytest.fixture
-def infra(tmp_path: Path) -> Repo:
-    """A stand-in pokus-infrastructure checkout with origin/main."""
+def infra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
+    """A stand-in pokus-infrastructure checkout with origin/main.
+
+    Its model schemas are the models' own, and the check expects their sha256.
+    """
     r = Repo(tmp_path / "infra")
     r.write("contract/platform-manifest.schema.json", json.dumps(SCHEMA))
+    models = []
+    for name, schema, target, _ in contract.MODELS:
+        model = Principals if target.endswith(":Principals") else Endpoints
+        text = json.dumps(model.model_json_schema(by_alias=True))
+        r.write(schema.as_posix(), text)
+        models.append((name, schema, target, hashlib.sha256(text.encode()).hexdigest()))
+    monkeypatch.setattr(contract, "MODELS", tuple(models))
     r.write("tools/platform/pinka_platform/__init__.py", "")
     r.write("tools/platform/pinka_platform/__main__.py", FAKE_VALIDATOR)
     pin = f"pyyaml=={metadata.version('pyyaml')}"
@@ -65,6 +81,12 @@ def test_the_release_meets_the_contract(repo: Repo, infra: Repo) -> None:
     assert outcome.lines[0] == f"INFRA_PIN {pin} is on pokus-infrastructure's main"
     assert "the validator accepts the release:" in outcome.lines
     assert "  platform potka 0.0.0 (python-uv)" in outcome.lines
+    assert [name for name, _, _, _ in contract.MODELS] == ["principals.json", "endpoints.toml"]
+    for name, schema, _, digest in contract.MODELS:
+        assert (
+            f"potka-core's model of {name} has the fields of {schema.as_posix()},"
+            f" the schema it was written for (sha256 {digest[:12]})"
+        ) in outcome.lines
     assert outcome.lines[-1] == f"PyYAML {metadata.version('pyyaml')}, as pokus-infrastructure pins"
 
 
@@ -143,3 +165,137 @@ def test_only_the_release_s_files_are_validated(repo: Repo, infra: Repo) -> None
     platform_repo(repo, infra.head()).write(".gitignore", ".venv/\n")
     repo.write("platform/.venv/refuse", "")
     assert contract.run(repo.path, infra.path).status == "passed"
+
+
+def commit_schema(infra: Repo, schema: dict[str, Any]) -> None:
+    infra.write("contract/principals.schema.json", json.dumps(schema))
+    infra.git("add", "-A")
+    infra.commit("A schema change")
+    infra.git("push", "-q", "origin", "main")
+    infra.git("fetch", "-q", "origin")
+
+
+def test_a_model_that_differs_from_the_contract_fails(repo: Repo, infra: Repo) -> None:
+    schema = Principals.model_json_schema(by_alias=True)
+    schema["properties"]["new_field"] = {"type": "string"}
+    schema["required"] = [*schema["required"], "new_field"]
+    commit_schema(infra, schema)
+    outcome = contract.run(platform_repo(repo, infra.head()).path, infra.path)
+    assert outcome.status == "failed"
+    assert outcome.lines[0] == (
+        "potka-core's model of principals.json differs from "
+        "contract/principals.schema.json: /new_field: only in the contract"
+    )
+    assert outcome.lines[1].startswith(
+        "contract/principals.schema.json is not the schema potka-core's model of"
+        " principals.json was written for (sha256 "
+    )
+    assert len(outcome.lines) == 2
+
+
+def test_any_other_change_of_a_schema_fails_by_its_sha256(repo: Repo, infra: Repo) -> None:
+    schema = Principals.model_json_schema(by_alias=True)
+    schema["$defs"]["Socket"]["properties"]["mode"] = {"const": "0666", "type": "string"}
+    commit_schema(infra, schema)
+    outcome = contract.run(platform_repo(repo, infra.head()).path, infra.path)
+    assert outcome.status == "failed"
+    assert len(outcome.lines) == 1
+    assert outcome.lines[0].endswith(
+        ": check the model against it, then update the expected sha256"
+    )
+
+
+def test_a_missing_schema_fails_with_the_other_findings(repo: Repo, infra: Repo) -> None:
+    (infra.path / "contract/endpoints.schema.json").unlink()
+    infra.git("add", "-A")
+    infra.commit("No endpoints schema")
+    infra.git("push", "-q", "origin", "main")
+    infra.git("fetch", "-q", "origin")
+    platform_repo(repo, infra.head()).write("platform/refuse", "")
+    outcome = contract.run(repo.path, infra.path)
+    assert outcome.status == "failed"
+    assert outcome.lines[0].startswith("the validator refused the release")
+    assert outcome.lines[-1].startswith("contract/endpoints.schema.json cannot be read: ")
+
+
+def test_the_other_checks_do_not_import_potka_core() -> None:
+    code = (
+        "import sys; import potka_ci.__main__, potka_ci.gate;"
+        " assert not [m for m in sys.modules if m.startswith('potka_core')]"
+    )
+    ci = Path(__file__).resolve().parents[1]
+    done = subprocess.run(
+        [sys.executable, "-c", code], cwd=ci, capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr
+
+
+THEIRS: dict[str, Any] = {
+    "type": "object",
+    "required": ["a", "list"],
+    "properties": {
+        "a": {"type": "string"},
+        "list": {
+            "type": "array",
+            "items": {"type": "object", "required": ["x"], "properties": {"x": {}, "y": {}}},
+        },
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("ours", "drift"),
+    [
+        (THEIRS, []),
+        ({**THEIRS, "required": ["a"]}, ["/list: required only by the contract"]),
+        (
+            {**THEIRS, "properties": {**THEIRS["properties"], "b": {}}},
+            ["/b: only in the model"],
+        ),
+        (
+            {
+                **THEIRS,
+                "properties": {
+                    "a": {"anyOf": [{"$ref": "#/$defs/A"}, {"type": "null"}]},
+                    "list": {"type": "array", "items": {"$ref": "#/$defs/Item"}},
+                },
+            },
+            ["/list[]/y: only in the contract"],
+        ),
+        ({**THEIRS, "required": ["a", "list", "b"]}, []),
+        (
+            {**THEIRS, "properties": {**THEIRS["properties"], "b": {}}, "required": ["a", "b"]},
+            ["/b: only in the model", "/list: required only by the contract"],
+        ),
+    ],
+)
+def test_schema_drift(ours: dict[str, Any], drift: list[str]) -> None:
+    defs = {"A": {"type": "string"}, "Item": {"required": ["x"], "properties": {"x": {}}}}
+    assert contract.schema_drift(THEIRS, {**ours, "$defs": defs}) == drift
+
+
+def test_schema_drift_follows_references_nulls_and_maps_on_both_sides() -> None:
+    inner = {"type": "object", "required": ["x"], "properties": {"x": {}}}
+    theirs = {
+        "type": "object",
+        "properties": {
+            "opt": {"$ref": "#/$defs/Inner"},
+            "map": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Inner"}},
+        },
+        "$defs": {"Inner": inner},
+    }
+    other = {"type": "object", "required": ["x", "z"], "properties": {"x": {}, "z": {}}}
+    ours = {
+        "type": "object",
+        "properties": {
+            "opt": {"anyOf": [{"$ref": "#/$defs/Other"}, {"type": "null"}]},
+            "map": {"type": "object", "additionalProperties": other},
+        },
+        "$defs": {"Other": other},
+    }
+    assert contract.schema_drift(theirs, ours) == [
+        "/map/*/z: only in the model",
+        "/opt/z: only in the model",
+    ]
+    with pytest.raises(KeyError):
+        contract.schema_drift(theirs, {"properties": {"opt": {"$ref": "#/$defs/Missing"}}})
