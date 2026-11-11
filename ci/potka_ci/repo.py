@@ -154,21 +154,26 @@ MAIN_REF = "refs/remotes/origin/main"
 
 
 def push_range(
-    root: Path, branch: str, before: str | None, after: str = "HEAD"
+    root: Path, branch: str, before: str | None, after: str = "HEAD", pushed: bool = True
 ) -> tuple[list[str], str]:
     """The commits a run checks: those not on main yet, or those a push to main brought.
 
-    On a branch other than main: every commit in ``origin/main..AFTER``, so a
-    refused commit fails every run until it is resolved, and the commits of
-    a push that ran no CI are covered by the next run. On main: the push's
-    ``BEFORE..AFTER``; the whole history of AFTER when BEFORE is missing,
-    the zero hash, or unknown to git.
+    On a branch other than main, and on every branch in a run without a push
+    event (a manual run or the local gate): every commit in
+    ``origin/main..AFTER``. On a branch, a refused commit so fails every run
+    until it is resolved, and the commits of a push that ran no CI are
+    covered by the next run. On main without a push event the range holds
+    the commits not on origin/main (none in a manual run). On a push to
+    main: the push's ``BEFORE..AFTER``; the whole history of AFTER when
+    BEFORE is missing, the zero hash, or unknown to git. The description
+    names the branch, and a run without a push event as such.
 
     Args:
         root: The working tree.
         branch: The branch pushed to (its short name).
         before: The branch's tip before the push, or None.
         after: The pushed commit.
+        pushed: Whether the run is a push event's.
 
     Returns:
         The commits (newest first) and a description of the range.
@@ -176,11 +181,12 @@ def push_range(
     Raises:
         GitError: origin/main is not fetched, or a git command failed.
     """
-    if branch != MAIN:
+    if branch != MAIN or not pushed:
         if not git_ok(root, ["rev-parse", "--verify", "--quiet", f"{MAIN_REF}^{{commit}}"]):
             raise GitError("origin/main is not fetched: fetch it (the range is origin/main..)")
         commits = git(root, ["rev-list", after, "--not", MAIN_REF]).split()
-        return commits, f"origin/main..{after} (branch {branch})"
+        event = "" if pushed else ", no push event"
+        return commits, f"origin/main..{after} (branch {branch}{event})"
     if before and before != ZERO_SHA and git_ok(root, ["cat-file", "-e", f"{before}^{{commit}}"]):
         commits = git(root, ["rev-list", after, "--not", before]).split()
         return commits, f"{before[:12]}..{after} (branch {MAIN})"

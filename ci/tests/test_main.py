@@ -20,7 +20,7 @@ AFTER = "2" * 40
 
 def recorder(calls: list[tuple[object, ...]]) -> object:
     def run(*args: object, **kwargs: object) -> Outcome:
-        calls.append(args)
+        calls.append((*args, kwargs))
         return Outcome("passed", ["ok"])
 
     return run
@@ -52,19 +52,19 @@ def hostile_branch(tmp_path: Path) -> tuple[str, list[Path]]:
 
 def test_outside_actions_the_checked_out_branch_and_head(repo: Repo) -> None:
     repo.git("checkout", "-q", "-b", "moving/on")
-    assert push_inputs(repo.path, {}) == Push("moving/on", None, "HEAD")
+    assert push_inputs(repo.path, {}) == Push("moving/on", None, "HEAD", pushed=False)
     repo.git("checkout", "-q", "--detach")
-    assert push_inputs(repo.path, {}) == Push("HEAD", None, "HEAD")
+    assert push_inputs(repo.path, {}) == Push("HEAD", None, "HEAD", pushed=False)
 
 
 def test_a_push_event_gives_its_before_and_after(repo: Repo, tmp_path: Path) -> None:
     environ = actions(tmp_path, "main", {"before": BEFORE, "after": AFTER}, sha="3" * 40)
-    assert push_inputs(repo.path, environ) == Push("main", BEFORE, AFTER)
+    assert push_inputs(repo.path, environ) == Push("main", BEFORE, AFTER, pushed=True)
 
 
 def test_a_manual_run_has_no_before(repo: Repo, tmp_path: Path) -> None:
     environ = actions(tmp_path, "moving/on", {"inputs": {}}, name="workflow_dispatch")
-    assert push_inputs(repo.path, environ) == Push("moving/on", None, AFTER)
+    assert push_inputs(repo.path, environ) == Push("moving/on", None, AFTER, pushed=False)
 
 
 @pytest.mark.parametrize(
@@ -131,7 +131,7 @@ def test_the_command_line_passes_the_push_as_data(
     for key, value in actions(tmp_path, name, {"before": BEFORE, "after": AFTER}).items():
         monkeypatch.setenv(key, value)
     assert cli.main([check]) == 0
-    assert calls == [(cli.ROOT, name, BEFORE, AFTER)]
+    assert calls == [(cli.ROOT, name, BEFORE, AFTER, {"pushed": True})]
     assert not [m for m in markers if m.exists()]
 
 
@@ -169,11 +169,11 @@ def test_the_gate_reads_the_push_from_the_environment(
     monkeypatch.setattr(commits, "run", recorder(calls))
     environ = actions(tmp_path, name, {"before": BEFORE, "after": AFTER})
     gate.run(repo.path, None, printer=lambda line: None, environ=environ)
-    assert calls == [(repo.path, name, BEFORE, AFTER), (repo.path, name, BEFORE, AFTER)]
+    assert calls == [(repo.path, name, BEFORE, AFTER, {"pushed": True})] * 2
     repo.git("checkout", "-q", "-b", "moving/on")
     calls.clear()
     gate.run(repo.path, None, printer=lambda line: None, environ={})
-    assert calls == [(repo.path, "moving/on", None, "HEAD"), (repo.path, "moving/on", None, "HEAD")]
+    assert calls == [(repo.path, "moving/on", None, "HEAD", {"pushed": False})] * 2
     assert not [m for m in markers if m.exists()]
 
 

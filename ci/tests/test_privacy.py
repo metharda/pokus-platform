@@ -407,6 +407,23 @@ def test_a_branch_run_scans_the_history_not_on_main_and_the_whole_tree(repo: Rep
     assert on_main
 
 
+def test_a_run_without_a_push_event_on_main_scans_no_history_and_the_whole_tree(
+    repo: Repo,
+) -> None:
+    repo.write("docs/a.md", f"write to {REAL_EMAIL}\n")
+    added = commit_all(repo, "Pushed already")
+    repo.set_origin_main(added)
+    environ = {privacy.DENYLIST_ENV: "x-y"}
+    found = "docs/a.md:1:10: e-mail address outside the example domains"
+    outcome = privacy.run(repo.path, "main", None, environ=environ, pushed=False)
+    assert outcome.lines == [found]
+    # A push to main without before: the whole history.
+    assert privacy.run(repo.path, "main", None, environ=environ).lines == [
+        found,
+        f"commit {added[:12]}: docs/a.md: added line: e-mail address outside the example domains",
+    ]
+
+
 def test_a_push_to_main_scans_its_range(repo: Repo) -> None:
     repo.write("docs/a.md", f"write to {REAL_EMAIL}\n")
     added = commit_all(repo, "Add")

@@ -3,8 +3,10 @@
 In GitHub Actions (``GITHUB_ACTIONS=true``) the branch is ``GITHUB_REF_NAME``.
 On a push event, before and after are the event's own, read from the event
 file (``GITHUB_EVENT_PATH``). On any other event (a manual run) there is no
-before, and after is ``GITHUB_SHA``. Elsewhere the branch is the checked-out
-one (``HEAD`` when detached), with no before and ``HEAD`` as after.
+before, and after is ``GITHUB_SHA``. Elsewhere (the local gate) the branch
+is the checked-out one (``HEAD`` when detached), with no before and
+``HEAD`` as after. Only a push event's run is marked as pushed: the others
+check ``origin/main..AFTER`` on every branch, main included.
 
 These values never pass through make or a shell. They are checked here
 (the branch with ``git check-ref-format``, before and after as 40 hex
@@ -16,9 +18,10 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from potka_ci.outcome import Outcome
 from potka_ci.repo import GitError, git, git_ok
@@ -38,11 +41,13 @@ class Push:
         branch: The branch pushed to (its short name).
         before: The branch's tip before the push, or None.
         after: The pushed commit.
+        pushed: Whether the run is a push event's.
     """
 
     branch: str
     before: str | None
     after: str
+    pushed: bool
 
 
 def _branch(root: Path, name: str, what: str) -> str:
@@ -86,16 +91,23 @@ def push_inputs(root: Path, environ: Mapping[str, str]) -> Push:
     """
     if environ.get("GITHUB_ACTIONS") != "true":
         branch = git(root, ["rev-parse", "--abbrev-ref", "HEAD"]).strip()
-        return Push(_branch(root, branch, "the checked-out branch"), None, "HEAD")
+        return Push(_branch(root, branch, "the checked-out branch"), None, "HEAD", pushed=False)
     branch = _branch(root, environ.get("GITHUB_REF_NAME", ""), "GITHUB_REF_NAME")
     if environ.get("GITHUB_EVENT_NAME") == "push":
         event = _event(environ)
         before = _sha(event.get("before"), "the push event's before")
-        return Push(branch, before, _sha(event.get("after"), "the push event's after"))
-    return Push(branch, None, _sha(environ.get("GITHUB_SHA"), "GITHUB_SHA"))
+        after = _sha(event.get("after"), "the push event's after")
+        return Push(branch, before, after, pushed=True)
+    return Push(branch, None, _sha(environ.get("GITHUB_SHA"), "GITHUB_SHA"), pushed=False)
 
 
-Check = Callable[[Path, str, str | None, str], Outcome]
+class Check(Protocol):
+    """``privacy.run`` or ``commits.run``."""
+
+    def __call__(
+        self, root: Path, branch: str, before: str | None, after: str, *, pushed: bool
+    ) -> Outcome:
+        """Check the run's range (:func:`potka_ci.repo.push_range`)."""
 
 
 def run_on_push(root: Path, environ: Mapping[str, str], check: Check) -> Outcome:
@@ -113,4 +125,4 @@ def run_on_push(root: Path, environ: Mapping[str, str], check: Check) -> Outcome
         push = push_inputs(root, environ)
     except (InputError, GitError) as exc:
         return Outcome("failed", [str(exc)])
-    return check(root, push.branch, push.before, push.after)
+    return check(root, push.branch, push.before, push.after, pushed=push.pushed)

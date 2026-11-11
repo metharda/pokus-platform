@@ -11,9 +11,10 @@
 # step only through env:. The privacy and commit checks read the branch
 # (GITHUB_REF_NAME) and the push's before and after (the event file)
 # themselves, check them and give them to git as arguments, never to make or
-# a shell. Their range: on a branch other than main, every commit not on
-# main yet (origin/main..after); on main, the push's before..after (the
-# whole history when before is the zero hash).
+# a shell. Their range: on a branch other than main, and in a manual run on
+# any branch, every commit not on main yet (origin/main..after); on a push
+# to main, the push's before..after (the whole history when before is the
+# zero hash). The privacy scan always reads the whole work tree.
 #
 # The Python of every job is the version in BUILD_PYTHON, which make setup
 # installs with uv; the workflow names no version of its own.

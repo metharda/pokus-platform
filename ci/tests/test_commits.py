@@ -159,6 +159,29 @@ def test_a_push_to_main_checks_before_to_after(repo: Repo) -> None:
     assert check(repo, "f" * 40) == refused  # unknown to git: the whole history
 
 
+# A run without a push event (a manual run, the local gate) checks
+# origin/main..AFTER on main too: the commits not pushed yet.
+def test_a_run_without_a_push_event_checks_the_commits_not_on_main(repo: Repo) -> None:
+    pushed = repo.commit("Pushed already", author=OTHER)
+    unchecked = commits.run(repo.path, "main", None, root_commit=repo.root, pushed=False)
+    assert unchecked.status == "failed"
+    assert unchecked.lines == ["origin/main is not fetched: fetch it (the range is origin/main..)"]
+    repo.set_origin_main(pushed)
+    outcome = commits.run(repo.path, "main", None, root_commit=repo.root, pushed=False)
+    assert outcome.status == "passed"
+    assert outcome.lines == [
+        "commits: 0 commit(s) checked (origin/main..HEAD (branch main, no push event))"
+    ]
+    new = repo.commit("Not pushed yet", author=OTHER)
+    outcome = commits.run(repo.path, "main", None, root_commit=repo.root, pushed=False)
+    assert outcome.lines == [
+        f"commit {new[:12]}: the author is not the expected identity",
+        f"commit {new[:12]}: the committer is not the expected identity",
+    ]
+    # A push to main without before checks the whole history: the pushed commit too.
+    assert f"commit {pushed[:12]}: the author is not the expected identity" in run(repo).lines
+
+
 # The event kinds of a push: the branch's range is every commit not on main.
 def branch_with(repo: Repo, *commits_: tuple[str, tuple[str, str]]) -> list[str]:
     repo.set_origin_main(repo.root)

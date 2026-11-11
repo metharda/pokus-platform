@@ -3,9 +3,9 @@
 It reports, in the repository's files (tracked, or untracked and not
 ignored: their paths, their contents, and the targets of symbolic links),
 and, for every commit of the run's range (:func:`potka_ci.repo.push_range`:
-on a branch other than main, every commit not on main yet; on main, the
-push's commits), in its message, the paths it added and the lines it
-added:
+on a branch other than main, and in a run without a push event, every
+commit not on main yet; on a push to main, the push's commits), in its
+message, the paths it added and the lines it added:
 
 * e-mail addresses outside the RFC 2606 domains (example.com, example.org,
   example.net and their subdomains; the .test, .example, .invalid and
@@ -508,6 +508,7 @@ def run(
     before: str | None,
     after: str = "HEAD",
     environ: dict[str, str] | None = None,
+    pushed: bool = True,
 ) -> Outcome:
     """Scan the repository's files and the history of the run's range.
 
@@ -517,6 +518,7 @@ def run(
         before: The branch's tip before the push, or None.
         after: The pushed commit.
         environ: The environment (the process's own when None).
+        pushed: Whether the run is a push event's.
 
     Returns:
         The outcome.
@@ -524,7 +526,7 @@ def run(
     if git(root, ["rev-parse", "--is-shallow-repository"]).strip() != "false":
         return Outcome("failed", ["a shallow checkout: fetch the whole history"])
     try:
-        commits, scope = push_range(root, branch, before, after)
+        commits, scope = push_range(root, branch, before, after, pushed)
     except GitError as exc:
         return Outcome("failed", [str(exc)])
     denylist = load_denylist(environ)
