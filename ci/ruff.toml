@@ -1,0 +1,6 @@
+# The repository checks use the platform's ruff settings.
+extend = "../platform/pyproject.toml"
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S603", "S607", "D"]
+"potka_ci/**" = ["S603", "S607"]

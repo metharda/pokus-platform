@@ -1,0 +1,194 @@
+# CI of the Pokus Platform. Every job calls make targets of platform/; the
+# local gate runs the same checks (and also lists the open verification
+# markers). The job "required" stands for every blocking job, so branch
+# protection requires that one job only.
+#
+# The repository is checked out to pokus-platform/, and pokus-infrastructure
+# (for the contract and build jobs) next to it, at the commit of INFRA_PIN.
+# Every third-party action is pinned to a full commit SHA.
+#
+# No expression is written into a run script: a value of the event reaches a
+# step only through env:. The privacy and commit checks read the branch
+# (GITHUB_REF_NAME) and the push's before and after (the event file)
+# themselves, check them and give them to git as arguments, never to make or
+# a shell. Their range: on a branch other than main, and in a manual run on
+# any branch, every commit not on main yet (origin/main..after); on a push
+# to main, the push's before..after (the whole history when before is the
+# zero hash). The privacy scan always reads the whole work tree.
+#
+# The Python of every job is the version in BUILD_PYTHON, which make setup
+# installs with uv; the workflow names no version of its own.
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup lint
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup test
+
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/pokus-infrastructure
+          ref: main
+          fetch-depth: 0
+          path: pokus-infrastructure
+          persist-credentials: false
+      - name: Check out pokus-infrastructure at INFRA_PIN
+        run: git -C ../../pokus-infrastructure checkout --quiet --detach "$(cat ../INFRA_PIN)"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup contract INFRA=../../pokus-infrastructure
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/pokus-infrastructure
+          ref: main
+          fetch-depth: 0
+          path: pokus-infrastructure
+          persist-credentials: false
+      - name: Check out pokus-infrastructure at INFRA_PIN
+        run: git -C ../../pokus-infrastructure checkout --quiet --detach "$(cat ../INFRA_PIN)"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup build INFRA=../../pokus-infrastructure
+
+  privacy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          fetch-depth: 0  # every branch, origin/main among them, with full history
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup
+      - name: Scan
+        env:
+          # The maintainer's denylist, for this step only; without it the
+          # scan passes with a warning.
+          POTKA_PRIVACY_DENYLIST: ${{ secrets.POTKA_PRIVACY_DENYLIST }}
+        run: make privacy
+
+  references:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          fetch-depth: 0  # every commit message
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup references
+
+  commits:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: pokus-platform/platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: pokus-platform
+          fetch-depth: 0  # every branch, origin/main among them, with full history
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          version: "0.12.23"
+          enable-cache: false
+      - run: make setup commits
+
+  required:
+    if: always()
+    needs: [lint, test, contract, build, privacy, references, commits]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every blocking job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "a blocking job ended with: $result"
+              exit 1
+            fi
+          done
+          echo "every blocking job passed"

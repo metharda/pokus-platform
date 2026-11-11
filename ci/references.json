@@ -1,0 +1,20 @@
+{
+  "comment": "The references check: this repository's files, paths and commit messages refer to nothing outside the product's own terms: no document of the people building it, no plan, no record. Each name below is split by an empty group, (?:), so this file does not match its own patterns.",
+  "patterns": [
+    {"id": "section-sign", "regex": "\u00a7", "why": "section numbers of a document outside this repository"},
+    {"id": "plan-step", "regex": "\\b(?:P(?:1[0-3]|[0-9])c?|S(?:)0)\\b", "why": "the names of a plan's steps"},
+    {"id": "records", "regex": "(?i)\\b(?:PROG(?:)RESS(?:-ARCHIVE)?\\.md|IMPLEMENTATION(?:)_NOTES|handover(?:)-template|delegation(?:)-log)\\b", "why": "a working repository's records"},
+    {"id": "rules-file", "regex": "\\bCLA(?:)UDE\\.md\\b", "why": "an assistant's rules file"},
+    {"id": "assistant-directory", "regex": "(?:^|[^\\w.])\\.cla(?:)ude/", "why": "an assistant's settings"},
+    {"id": "protocol", "regex": "(?i)\\bsession[ -]proto(?:)col\\b", "why": "a document of the people building the platform"},
+    {"id": "specification-files", "regex": "(?i)\\b(?:potka-platform(?:)-spec|pokus-docs(?:)-specification|potka-session(?:)-protocol)\\b", "why": "documents outside this repository"},
+    {"id": "owner-decision", "regex": "(?i)\\bowner(?:['\u2019]?s)? (?:decision|approval|answer|rule)s?\\b", "why": "a decision recorded outside this repository"},
+    {"id": "owner-decided", "regex": "(?i)\\bowner (?:decided|approved|answered|ruled)\\b", "why": "a decision recorded outside this repository"},
+    {"id": "specification-section", "regex": "(?i)\\b(?:section \\d+(?:\\.\\d+)* of the spec(?:ification)?|spec(?:ification)? section \\d)", "why": "section numbers of a document outside this repository"}
+  ],
+  "paths": [
+    {"id": "assistant-settings", "regex": "(?:^|/)\\.cla(?:)ude(?:/|$)", "why": "an assistant's settings"},
+    {"id": "rules-file", "regex": "(?:^|/)CLA(?:)UDE\\.md$", "why": "an assistant's rules file"},
+    {"id": "working-records", "regex": "^(?:records|notes|review|specs)/", "why": "a working repository's records, notes, review diffs or documents"}
+  ]
+}

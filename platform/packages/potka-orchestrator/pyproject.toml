@@ -1,0 +1,15 @@
+[project]
+name = "potka-orchestrator"
+version = "0.0.0"
+description = "The orchestrator of the Pokus Platform (not implemented yet)."
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = ["potka-core"]
+
+[project.scripts]
+potka-orch = "potka_orchestrator.main:main"
+potka-hook = "potka_orchestrator.hooks:main"
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13"]
+build-backend = "uv_build"

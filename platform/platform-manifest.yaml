@@ -1,0 +1,76 @@
+# The Pokus Platform's manifest for pokus-infrastructure's platform contract
+# (contract v2). It declares only what the release uses.
+contract_version: 2
+name: potka
+version: 0.0.0
+runtime: python-uv
+requires: [incus, inference]
+
+services:
+  - name: orch
+    profile: controller
+    start: [.venv/bin/potka-orch]
+    state: [artifacts, datasets]
+  - name: agent
+    profile: untrusted-agent
+    package: packages/potka-agent/
+    start: [.venv/bin/potka-agent]
+  - name: gw
+    profile: inference-broker
+    start: [.venv/bin/potka-gw]
+  - name: exec
+    profile: sandbox-operator
+    start: [.venv/bin/potka-exec]
+  - name: inject
+    profile: restricted-operator
+    start: [.venv/bin/potka-inject]
+  - name: verify
+    profile: restricted-operator
+    start: [.venv/bin/potka-verify]
+  - name: eval
+    profile: restricted-reader
+    start: [.venv/bin/potka-eval]
+    state: [reports]
+
+sockets:
+  - name: api
+    service: orch
+    clients: [researchers, admins, root]
+  - name: svc
+    service: orch
+    clients: [inference-broker, sandbox-operator, restricted-operator, restricted-reader]
+  - name: agent-session
+    service: orch
+    clients: [untrusted-agent]
+    untrusted_clients: true
+  - name: agent
+    service: gw
+    clients: [untrusted-agent]
+    untrusted_clients: true
+  - name: svc
+    service: gw
+    clients: [controller]
+  - name: agent
+    service: exec
+    clients: [untrusted-agent]
+    untrusted_clients: true
+  - name: api
+    service: exec
+    clients: [controller]
+  - name: api
+    service: inject
+    clients: [controller]
+  - name: api
+    service: verify
+    clients: [controller]
+
+hooks:
+  reconcile:
+    run: [.venv/bin/potka-hook, reconcile]
+    timeout_seconds: 300
+  drain:
+    run: [.venv/bin/potka-hook, drain]
+    timeout_seconds: 300
+  health:
+    run: [.venv/bin/potka-hook, health]
+    timeout_seconds: 60
