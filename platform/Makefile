@@ -59,8 +59,8 @@ lint: ## ruff, ruff format, mypy (strict) and actionlint (with ShellCheck)
 	$(if $(wildcard ../.github/workflows/ci.yml),$(RUN) actionlint ../.github/workflows/ci.yml,@echo "lint: no workflow yet, actionlint not run")
 
 .PHONY: test
-test: ## The tests of the packages and of the repository checks
-	$(RUN) pytest -q -p no:cacheprovider
+test: ## The tests of the packages and of the repository checks (INFRA=<path> for the database tests)
+	$(if $(INFRA),POTKA_INFRA="$(abspath $(INFRA))") $(RUN) pytest -q -p no:cacheprovider
 
 .PHONY: contract
 contract: ## The release against pokus-infrastructure's contract at INFRA_PIN (INFRA=<path>)

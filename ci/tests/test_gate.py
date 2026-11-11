@@ -13,10 +13,14 @@ def fixed(outcome: Outcome) -> object:
     return lambda *args, **kwargs: outcome
 
 
+TOOL_ENVS: list[dict[str, str] | None] = []
+
+
 @pytest.fixture
 def steps(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    def tool(name: str, argv: list[str], cwd: Path) -> Outcome:
+    def tool(name: str, argv: list[str], cwd: Path, env: dict[str, str] | None = None) -> Outcome:
         if name == "pytest":
+            TOOL_ENVS.append(env)
             return Outcome("passed", ["...", "12 passed in 0.10s"])
         return Outcome("passed", [f"{name} ok"])
 
@@ -46,6 +50,15 @@ def test_the_summary_line_and_what_follows_it(repo: Repo, steps: pytest.MonkeyPa
         "--- references: failed",
         "a.md:1:1: plan-step",
     ]
+
+
+def test_the_tests_get_the_infrastructure_checkout(
+    repo: Repo, steps: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    TOOL_ENVS.clear()
+    gate.run(repo.path, None, printer=lambda line: None)
+    gate.run(repo.path, tmp_path / "infra", printer=lambda line: None)
+    assert TOOL_ENVS == [None, {"POTKA_INFRA": str((tmp_path / "infra").resolve())}]
 
 
 def test_verbose_prints_every_step(repo: Repo, steps: pytest.MonkeyPatch) -> None:

@@ -53,6 +53,8 @@ jobs:
     # tag and digest of pokus-infrastructure's docs/reference/versions.md at
     # INFRA_PIN (the contract job compares them), on the runner's loopback.
     # The tests require its major version and may not skip (ci/ci-skips.json).
+    # Some tests compare with pokus-infrastructure's files at INFRA_PIN (its
+    # restricted-schema check and its role names), checked out next to it.
     services:
       postgres:
         image: docker.io/library/postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
@@ -66,6 +68,7 @@ jobs:
     env:
       POTKA_TEST_POSTGRES: host=127.0.0.1 port=5432 user=postgres password=potka-ci
       POTKA_POSTGRES_REQUIRED: "18"
+      POTKA_INFRA: ../../pokus-infrastructure
     defaults:
       run:
         working-directory: pokus-platform/platform
@@ -74,6 +77,15 @@ jobs:
         with:
           path: pokus-platform
           persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/pokus-infrastructure
+          ref: main
+          fetch-depth: 0
+          path: pokus-infrastructure
+          persist-credentials: false
+      - name: Check out pokus-infrastructure at INFRA_PIN
+        run: git -C ../../pokus-infrastructure checkout --quiet --detach "$(cat ../INFRA_PIN)"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           version: "0.12.23"
