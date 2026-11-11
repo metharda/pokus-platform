@@ -4,9 +4,15 @@
 
 [tool.uv]
 required-version = ">=0.12.23,<0.13"
+# A dependency version is locked only when it has been on PyPI for at least
+# 7 days: uv leaves out every file uploaded later (the lock records the span).
+exclude-newer = "7 days"
 
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.uv.sources]
+potka-core = { workspace = true }
 
 [dependency-groups]
 build = ["uv_build==0.12.24"]
@@ -18,6 +24,7 @@ dev = [
   "shellcheck-py==0.11.0.1",
   "types-pyyaml==6.0.12.20260906",
   "types-jsonschema==4.26.0.20260518",
+  "hypothesis==6.170.14",
 ]
 contract = [
   "pyyaml==6.0.3",
@@ -29,7 +36,7 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "RUF", "D"]
+select = ["E", "F", "W", "I", "B", "UP", "S", "RUF", "D", "G"]
 ignore = ["D203", "D213"]
 
 [tool.ruff.lint.per-file-ignores]
