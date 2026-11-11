@@ -13,6 +13,7 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 potka-core = { workspace = true }
+potka-db = { workspace = true }
 
 [dependency-groups]
 build = ["uv_build==0.12.24"]
