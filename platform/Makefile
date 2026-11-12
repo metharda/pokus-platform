@@ -42,6 +42,10 @@ setup: ## Python (../BUILD_PYTHON) in .python/, then the locked development envi
 	$(UV) python install --no-bin "$(BUILD_PYTHON)"
 	$(UV) sync --locked --all-packages --group contract --python "$(BUILD_PYTHON)"
 
+.PHONY: postgres
+postgres: ## PostgreSQL 18.6 (the lab's version) from conda-forge, each file checked by sha256, in .postgres/
+	tests/postgres/install.sh
+
 .PHONY: lock
 lock: ## Update uv.lock
 	$(UV) lock
@@ -51,11 +55,12 @@ lint: ## ruff, ruff format, mypy (strict) and actionlint (with ShellCheck)
 	$(RUN) ruff check $(CODE)
 	$(RUN) ruff format --check $(CODE)
 	$(RUN) mypy packages/*/src tests ../ci
+	$(RUN) shellcheck $(sort $(wildcard tests/*/*.sh))
 	$(if $(wildcard ../.github/workflows/ci.yml),$(RUN) actionlint ../.github/workflows/ci.yml,@echo "lint: no workflow yet, actionlint not run")
 
 .PHONY: test
-test: ## The tests of the packages and of the repository checks
-	$(RUN) pytest -q -p no:cacheprovider
+test: ## The tests of the packages and of the repository checks (INFRA=<path> for the database tests)
+	$(if $(INFRA),POTKA_INFRA="$(abspath $(INFRA))") $(RUN) pytest -q -p no:cacheprovider
 
 .PHONY: contract
 contract: ## The release against pokus-infrastructure's contract at INFRA_PIN (INFRA=<path>)

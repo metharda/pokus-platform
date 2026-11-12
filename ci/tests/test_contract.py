@@ -21,6 +21,16 @@ SCHEMA = {
     "required": ["name"],
     "properties": {"name": {"type": "string"}},
 }
+LAB_POSTGRES = (
+    "docker.io/library/postgres:18.6-trixie"
+    "@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722"
+)
+VERSIONS = """| Name | Image | Tag | Digest | Platforms |
+| --- | --- | --- | --- | --- |
+| otel_collector | `docker.io/otel/collector` | `0.1` | `sha256:{other}` | linux/amd64 |
+| postgres | `docker.io/library/postgres` | `18.6-trixie` | `sha256:{digest}` | linux/amd64 |
+""".format(other="1" * 64, digest=LAB_POSTGRES.rsplit(":", 1)[1])
+WORKFLOW = "jobs:\n  test:\n    services:\n      postgres:\n        image: {image}\n"
 FAKE_VALIDATOR = """
 import pathlib, sys
 if sys.argv[1] != "validate" or sys.argv[3:] != ["--no-host-check"]:
@@ -53,6 +63,7 @@ def infra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
     r.write("tools/platform/pinka_platform/__main__.py", FAKE_VALIDATOR)
     pin = f"pyyaml=={metadata.version('pyyaml')}"
     r.write("pyproject.toml", f'[dependency-groups]\ndev = ["{pin}"]\n')
+    r.write("docs/reference/versions.md", VERSIONS)
     r.git("add", "-A")
     r.commit("The contract")
     bare = tmp_path / "infra.git"
@@ -63,9 +74,12 @@ def infra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
     return r
 
 
-def platform_repo(repo: Repo, pin: str, manifest: str = "name: potka\n") -> Repo:
+def platform_repo(
+    repo: Repo, pin: str, manifest: str = "name: potka\n", image: str = LAB_POSTGRES
+) -> Repo:
     repo.write("INFRA_PIN", pin + "\n")
     repo.write("platform/platform-manifest.yaml", manifest)
+    repo.write(".github/workflows/ci.yml", WORKFLOW.format(image=image))
     return repo
 
 
@@ -87,7 +101,59 @@ def test_the_release_meets_the_contract(repo: Repo, infra: Repo) -> None:
             f"potka-core's model of {name} has the fields of {schema.as_posix()},"
             f" the schema it was written for (sha256 {digest[:12]})"
         ) in outcome.lines
+    assert (
+        f"the test job's PostgreSQL is the lab's (docs/reference/versions.md): {LAB_POSTGRES}"
+    ) in outcome.lines
     assert outcome.lines[-1] == f"PyYAML {metadata.version('pyyaml')}, as pokus-infrastructure pins"
+
+
+def test_the_workflow_s_postgres_must_be_the_lab_s(repo: Repo, infra: Repo) -> None:
+    other = LAB_POSTGRES[:-1] + "0"
+    outcome = contract.run(platform_repo(repo, infra.head(), image=other).path, infra.path)
+    assert outcome.status == "failed"
+    assert outcome.lines == [
+        f"the test job's PostgreSQL is {other}, but the lab's"
+        f" (docs/reference/versions.md) is {LAB_POSTGRES}"
+    ]
+
+
+def test_a_workflow_without_the_service_fails(repo: Repo, infra: Repo) -> None:
+    platform_repo(repo, infra.head())
+    repo.write(".github/workflows/ci.yml", "jobs:\n  test:\n    steps: []\n")
+    outcome = contract.run(repo.path, infra.path)
+    assert outcome.lines == [
+        ".github/workflows/ci.yml names no image for the test job's postgres service"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("versions", "finding"),
+    [
+        (None, "docs/reference/versions.md is missing in the pokus-infrastructure checkout"),
+        ("| redis | `r` | `7` | `sha256:" + "2" * 64 + "` |\n", "has 0 rows for postgres"),
+        (VERSIONS + VERSIONS.splitlines()[-1] + "\n", "has 2 rows for postgres"),
+        (
+            VERSIONS + "| postgres | docker.io/library/postgres | 18 | sha256:00 |\n",
+            "has 2 rows for postgres",
+        ),
+        ("| postgres | `docker.io/library/postgres` | `18` | `sha256:00` |\n", "is not image"),
+    ],
+    ids=["missing", "no-row", "two-rows", "two-rows-one-malformed", "malformed"],
+)
+def test_the_versions_page_must_have_one_postgres_row(
+    tmp_path: Path, versions: str | None, finding: str
+) -> None:
+    root = tmp_path / "root"
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / ".github" / "workflows" / "ci.yml").write_text(WORKFLOW.format(image=LAB_POSTGRES))
+    infra = tmp_path / "infra"
+    (infra / "docs" / "reference").mkdir(parents=True)
+    if versions is not None:
+        (infra / "docs" / "reference" / "versions.md").write_text(versions)
+    findings, shown = contract.database_image(root, infra)
+    assert shown == []
+    assert len(findings) == 1
+    assert finding in findings[0]
 
 
 @pytest.mark.parametrize("text", ["ced2fbd", "x" * 40, "a" * 40 + "\n" + "b" * 40, "A" * 40])

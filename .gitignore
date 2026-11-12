@@ -1,6 +1,7 @@
 # Development environments and caches
 .venv/
 /platform/.python/
+/platform/.postgres/
 .agent-venvs/
 __pycache__/
 *.py[cod]

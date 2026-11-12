@@ -1,0 +1,33 @@
+# The conda-forge packages of PostgreSQL 18.6 (linux-aarch64), for the local integration
+# tests only (make postgres): one package per line, its URL and its sha256.
+# make postgres downloads each one, checks its sha256, and only then installs.
+https://conda.anaconda.org/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda a2527b1d81792a0ccd2c05850960df119c2b6d8f5fdec97f2db7d25dc23b1068
+https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.10.23-hbd8a1cb_0.conda 95619b9c1184be7175392eeb0ee7eeb5ccf25d280951f4225f2d62e725790be3
+https://conda.anaconda.org/conda-forge/linux-aarch64/cyrus-sasl-2.1.28-h6598af7_1.conda 0606296a3b0cc757229dd97db8c6dc0f77e54f975f89ae63c36fb01e2a2abe61
+https://conda.anaconda.org/conda-forge/linux-aarch64/icu-78.3-py311h3512406_2.conda 54d921defd947adb58a90e10203d3bfe6c1f209f5f1a1ad2c6a9f7617f2fb59e
+https://conda.anaconda.org/conda-forge/linux-aarch64/keyutils-1.6.3-h5bc82ec_1.conda 3999b1472f1e549a0b766428e2823abf20626aac5314b474c9b76bf6eb679def
+https://conda.anaconda.org/conda-forge/linux-aarch64/krb5-1.22.2-h095d8e5_2.conda 601d79af94d9562ba70e2d4947034ba159aae293a3c860855335a7c76c14400e
+https://conda.anaconda.org/conda-forge/linux-aarch64/libedit-3.1.20260512-pl5321hc48eb74_0.conda 58fd637d0219016bb69edf2973b089975de283e8a38149d69ef586b8fc4ad90b
+https://conda.anaconda.org/conda-forge/linux-aarch64/libgcc-16.2.0-h205dda4_7.conda eae7a3449d5a3b5351c5427137c076cc3fc826645c7bfc42dc10772b783826f1
+https://conda.anaconda.org/conda-forge/linux-aarch64/libgcc-ng-16.2.0-he9431aa_7.conda d7502682cfce6f51aabd40bba63cd6b46db3d3e4b67abdb00f54ae72332523db
+https://conda.anaconda.org/conda-forge/linux-aarch64/libgomp-16.2.0-h8acb6b2_7.conda 4406fd67c5beeb99b9372f9bf07aa3e40ca141e337eceebac3ff64aa72799494
+https://conda.anaconda.org/conda-forge/linux-aarch64/libiconv-1.18-h1ea5142_3.conda d22c666eb887afd2119aac2110e23a0e817e9391bda99293421f7c46dab1564c
+https://conda.anaconda.org/conda-forge/linux-aarch64/liblzma-5.8.3-he30d5cf_1.conda f760669fd1cea27f689f411c0d5488e26ce50e382c9b63e4ad348f959850124a
+https://conda.anaconda.org/conda-forge/linux-aarch64/libntlm-1.4-hf897c2e_1002.tar.bz2 0e303d7a8845391bd1634efb65dc9d9b82b5608ebeb32fb77a56d1ed696d2eee
+https://conda.anaconda.org/conda-forge/linux-aarch64/libpq-18.6-h4d8aa50_3.conda 8f13916f6c332d91869a44f3452ef730fec0203ee5797e090e4772ee2cf3677e
+https://conda.anaconda.org/conda-forge/linux-aarch64/libstdcxx-16.2.0-hef695bb_7.conda b241a3acfa9cdb1359112864a1241225533c92642de3000d52ae65ef5d3a9786
+https://conda.anaconda.org/conda-forge/linux-aarch64/liburing-2.14-h45ce4d5_1.conda 901744d6e0c3b35c87e2dd6fa194f1ef7a1607fde57538999b09198ae0eda3fa
+https://conda.anaconda.org/conda-forge/linux-aarch64/libxcrypt-4.4.38-h80f16a2_0.conda d3514900e2121972e435f7803763c1843dad6709e48aa02a2b47c4d481f83be7
+https://conda.anaconda.org/conda-forge/linux-aarch64/libxml2-2.15.4-h92b9305_1.conda f714cfffb6009f1bd028a06d237e6f4550ff4ffb3f4209a9bfaeb2b36f7c6a56
+https://conda.anaconda.org/conda-forge/linux-aarch64/libxml2-16-2.15.4-h2e5089f_1.conda 96bce6a0c8eae2e1d22e09473b9e54bb13a736b4997ddd7a111eeaef16734708
+https://conda.anaconda.org/conda-forge/linux-aarch64/libxslt-1.1.45-h22b76d0_1.conda 3f18581631da141a82a3066d99db8bf88e46785fa973ddfc66543e890f202fb0
+https://conda.anaconda.org/conda-forge/linux-aarch64/libzlib-1.3.2-hdc9db2a_3.conda 76efa6cc9d7e6f5ee3bbca0939f64054af2bdfb3c3632531f8e633cf6c2ea41e
+https://conda.anaconda.org/conda-forge/linux-aarch64/lz4-c-1.10.0-hfb11796_2.conda e8392843a18954fef038f2721fde65c4dbe7693fcd07677e5e74fca85b1a690c
+https://conda.anaconda.org/conda-forge/linux-aarch64/ncurses-6.6-h2b6f883_1.conda d69a04914139627f0a6bfd19412d6c7f1e37edc896af84a6011e07e8bc1e69fa
+https://conda.anaconda.org/conda-forge/linux-aarch64/openldap-2.6.13-h2fb54aa_0.conda 08fab1d144a9790763f30bd44ac4a2f288703ad668d8c31d339ddea23e981147
+https://conda.anaconda.org/conda-forge/linux-aarch64/openssl-3.6.5-he6ad1d5_0.conda 238136f1df197ecd89bafd728a34d0642176f3170423d13d8276746d675a9485
+https://conda.anaconda.org/conda-forge/linux-aarch64/postgresql-18.6-h0b7f828_3.conda 3ff45de8da97793ba20ca9ff5535b6d192b2ac067795d7c6be30f6a6df945e08
+https://conda.anaconda.org/conda-forge/linux-aarch64/readline-8.3-ha7194a6_1.conda 80167dcf73a96b6d0c1bb2298d7b8b9bc21b27cc5bf56979f9c548b49a4d1722
+https://conda.anaconda.org/conda-forge/linux-aarch64/tzcode-2026f-h29ee22c_0.conda 315c9e21a3de02b67635a890a2b42850394f3f610072436b9b7c294eb7b8c6c3
+https://conda.anaconda.org/conda-forge/noarch/tzdata-2026e-h5d301ff_0.conda 2b7ca858879f183ce2dcc65b300f48a0133d5430550f35b23d80d405a0788dbf
+https://conda.anaconda.org/conda-forge/linux-aarch64/zstd-1.5.7-h9d15635_7.conda 427fd14bcb3b8659796fecc682716617409350fb5a98e5b7b47558a10d1a2fc7

@@ -1,10 +1,11 @@
-"""The hooks pokus-infrastructure runs for this release: health, reconcile, drain.
+"""The hooks pokus-infrastructure runs for this release: migrate, health, reconcile, drain.
 
 Each hook prints exactly one JSON line on standard output. pokus-infrastructure
 judges a hook by that line and its exit status: ``"ok": true`` (for ``drain``,
 ``"drained": true``) with exit status 0 is success.
 
-No service of this release is implemented yet, so:
+``migrate`` brings the database to the release's newest revision
+(:mod:`potka_db.migrate`). No service of this release is implemented yet, so:
 
 - ``health`` reports the release as not healthy (exit status 1);
 - ``reconcile`` has nothing to clean up, since the release creates nothing;
@@ -29,6 +30,7 @@ def _parser() -> argparse.ArgumentParser:
         description="Run one of the release's hooks; it prints one JSON line on standard output.",
     )
     hooks = parser.add_subparsers(dest="hook", required=True, metavar="HOOK")
+    hooks.add_parser("migrate", help="bring the database to the release's newest revision")
     hooks.add_parser("health", help="whether the release's services are healthy")
     hooks.add_parser("reconcile", help="clean up what an interrupted run left behind")
     drain = hooks.add_parser("drain", help="finish or checkpoint the work in flight")
@@ -52,6 +54,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         The exit status: 0 when the hook succeeded, 1 when it did not.
     """
     args = _parser().parse_args(argv)
+    if args.hook == "migrate":
+        # Imported here, so the database's libraries load only for this hook.
+        from potka_db import migrate
+
+        return migrate.main()
     if args.hook == "health":
         _emit({"ok": False, "error": "no service of this release is implemented"})
         return 1

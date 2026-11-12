@@ -27,6 +27,8 @@ from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
 WORKFLOW = Path(".github") / "workflows" / "ci.yml"
+# The shell scripts of platform/, which make lint checks with ShellCheck too.
+SHELL_SCRIPTS = "tests/*/*.sh"
 # pytest's last line: "117 passed, 1 skipped, 2 warnings in 3.04s".
 PYTEST_SUMMARY_RE = re.compile(r"^=*\s*(?P<counts>\d+ \w+(?:, \d+ \w+)*) in [\d.]+s")
 PYTEST_NOTEWORTHY = ("skipped", "xfailed", "xpassed", "warning", "warnings", "deselected")
@@ -45,13 +47,14 @@ class Step:
     outcome: Outcome
 
 
-def tool(name: str, argv: list[str], cwd: Path) -> Outcome:
+def tool(name: str, argv: list[str], cwd: Path, env: dict[str, str] | None = None) -> Outcome:
     """Run a linter or the tests.
 
     Args:
         name: The executable.
         argv: Its arguments.
         cwd: Where to run it.
+        env: Variables to add to the environment, if any.
 
     Returns:
         Passed or failed, with its output.
@@ -59,7 +62,14 @@ def tool(name: str, argv: list[str], cwd: Path) -> Outcome:
     path = shutil.which(name)
     if path is None:
         return Outcome("failed", [f"{name} is not installed: run make setup"])
-    done = subprocess.run([path, *argv], cwd=cwd, capture_output=True, text=True, check=False)
+    done = subprocess.run(
+        [path, *argv],
+        cwd=cwd,
+        env={**os.environ, **(env or {})},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     output = (done.stdout + done.stderr).rstrip().splitlines()
     return Outcome("passed" if done.returncode == 0 else "failed", output)
 
@@ -140,7 +150,10 @@ def run(
     code = ["packages", "tests", "../ci"]
     mypy_paths = [str(p.relative_to(platform)) for p in sorted(platform.glob("packages/*/src"))]
     workflow = root / WORKFLOW
+    scripts = [str(p.relative_to(platform)) for p in sorted(platform.glob(SHELL_SCRIPTS))]
     env = os.environ if environ is None else environ
+    # The database tests compare with pokus-infrastructure's files at the pin.
+    tests_env = {"POTKA_INFRA": str(infra.resolve())} if infra is not None else None
     steps: list[tuple[str, Callable[[], Outcome]]] = [
         ("ruff", lambda: tool("ruff", ["check", *code], platform)),
         ("ruff-format", lambda: tool("ruff", ["format", "--check", *code], platform)),
@@ -154,8 +167,18 @@ def run(
             ),
         ),
         (
+            "shellcheck",
+            lambda: (
+                tool("shellcheck", scripts, platform)
+                if scripts
+                else Outcome("skipped", [f"no shell script ({SHELL_SCRIPTS})"])
+            ),
+        ),
+        (
             "pytest",
-            lambda: pytest_outcome(tool("pytest", ["-q", "-p", "no:cacheprovider"], platform)),
+            lambda: pytest_outcome(
+                tool("pytest", ["-q", "-p", "no:cacheprovider"], platform, tests_env)
+            ),
         ),
         ("contract", lambda: contract.run(root, infra)),
         ("build", lambda: build.run(root, infra, uv, python)),

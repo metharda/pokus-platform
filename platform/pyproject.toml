@@ -13,6 +13,7 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 potka-core = { workspace = true }
+potka-db = { workspace = true }
 
 [dependency-groups]
 build = ["uv_build==0.12.24"]
@@ -25,6 +26,7 @@ dev = [
   "types-pyyaml==6.0.12.20260906",
   "types-jsonschema==4.26.0.20260518",
   "hypothesis==6.170.14",
+  "psycopg[binary]==3.3.8",
 ]
 contract = [
   "pyyaml==6.0.3",
@@ -48,9 +50,12 @@ convention = "google"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-mypy_path = "../ci"
+mypy_path = "../ci:tests"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "../ci/tests"]
-pythonpath = ["../ci"]
-addopts = ["-ra", "--strict-markers"]
+pythonpath = ["../ci", "tests"]
+# skip_policy names every skipped test; in CI a skip that ci/ci-skips.json
+# does not name fails.
+addopts = ["-ra", "--strict-markers", "-p", "potka_ci.skip_policy", "-p", "potka_testing.fixtures"]
+xfail_strict = true

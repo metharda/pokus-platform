@@ -30,6 +30,17 @@ def test_reconcile_has_nothing_to_clean_up(capsys: pytest.CaptureFixture[str]) -
     assert run(capsys, "reconcile") == (0, {"ok": True, "reconciled": []})
 
 
+def test_migrate_runs_the_database_s_hook(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake() -> int:
+        print('{"ok": false, "error": "Fake"}')
+        return 1
+
+    monkeypatch.setattr("potka_db.migrate.main", fake)
+    assert run(capsys, "migrate") == (1, {"ok": False, "error": "Fake"})
+
+
 def test_drain_has_nothing_in_flight(capsys: pytest.CaptureFixture[str]) -> None:
     assert run(capsys, "drain", "--timeout", "30") == (0, {"drained": True})
 
@@ -38,7 +49,7 @@ def test_drain_has_nothing_in_flight(capsys: pytest.CaptureFixture[str]) -> None
     "argv",
     [
         [],
-        ["migrate"],
+        ["migrate", "--now"],
         ["drain"],
         ["drain", "--timeout", "soon"],
     ],
