@@ -9,8 +9,17 @@ from typing import Any
 
 import pytest
 import yaml
-from potka_core.catalog.lint import PRIMITIVES, PROBES, Finding, is_control, lint, lint_catalog
+from potka_core.catalog.lint import (
+    LOAD_PRIMITIVES,
+    PRIMITIVES,
+    PROBES,
+    Finding,
+    is_control,
+    lint,
+    lint_catalog,
+)
 from potka_core.catalog.loader import load_catalog
+from potka_core.images import load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
 
 WEB = "blueprints/fixture-web.yaml"
@@ -22,6 +31,19 @@ CONTROL = "scenarios/FIXTURE-CONTROL-000/1"
 _WEB_NODE = yaml.safe_load((FIXTURE_CATALOG / WEB).read_text(encoding="utf-8"))["nodes"][0]
 GOLDEN: str = _WEB_NODE["golden"]["version"]
 OTHER = "0.0.9"
+
+
+def not_golden(path: str, node: str, blueprint: str) -> tuple[str, str, str]:
+    """The finding for the node NODE of PATH whose golden image is BLUEPRINT at OTHER.
+
+    The table lists BLUEPRINT at the version GOLDEN, which the message says.
+    """
+    return (
+        path,
+        "golden",
+        f"the golden image of the node {node} is not in the golden images table:"
+        f" it lists {blueprint} at the version {GOLDEN}",
+    )
 
 
 @pytest.fixture
@@ -46,7 +68,7 @@ def new_version(root: Path, scenario: str, version: int, **changes: Any) -> str:
 def test_the_fixture_catalog_has_no_finding(catalog: Path) -> None:
     assert lint(FIXTURE_CATALOG) == []
     assert lint(catalog) == []
-    assert lint_catalog(load_catalog(catalog)) == []
+    assert lint_catalog(load_catalog(catalog), load_table()) == []
 
 
 def test_the_fault_primitives_and_the_probes() -> None:
@@ -205,7 +227,27 @@ def test_every_primitive_and_probe_name_is_accepted(catalog: Path) -> None:
         d["preconditions"] = [{"probe": name, "params": {}} for name in sorted(PROBES)]
 
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", scenario)
-    assert found(catalog) == []
+    # Every name is known. What else such a step lacks is other rules' to find: a tool no
+    # golden image carries, and the primitives that work through a background component.
+    path = f"{CONTROL}/scenario.yaml"
+    expected = []
+    for index, name in enumerate(sorted(PRIMITIVES)):
+        if name == "net.block_port":
+            reason = "not every golden image carries nftables"
+            expected.append(
+                (path, "available", f"setup.{index}: {name} is not available: {reason}")
+            )
+        if name in LOAD_PRIMITIVES:
+            reason = "no derived image can be built yet, so no background component runs"
+            expected.append(
+                (path, "available", f"setup.{index}: {name} is not available: {reason}")
+            )
+            unnamed = (
+                "it must name its node, component, setting outright, as text without a parameter"
+            )
+            expected.append((path, "load", f"setup.{index}: {name}: {unnamed}"))
+    assert len(expected) == 11
+    assert found(catalog) == sorted(expected)
 
 
 def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> None:
@@ -461,23 +503,26 @@ def test_the_nodes_that_share_a_derived_image_describe_it_alike(catalog: Path) -
     shutil.rmtree(catalog / "blueprints" / "fixture-store-app")
     edit_yaml(catalog, STORE, shared("web-nginx-flask", GOLDEN, 1))
     assert found(catalog) == []
-    for change, differences in (
+    # The golden version OTHER is also in no table: the last element names its blueprint.
+    cases: tuple[tuple[Any, list[str], str | None], ...] = (
         (
             shared("pg-primary", GOLDEN, 1),
             [f"built on web-nginx-flask/{GOLDEN}, not pg-primary/{GOLDEN}"],
+            None,
         ),
         (
             shared("web-nginx-flask", OTHER, 1),
             [f"built on web-nginx-flask/{GOLDEN}, not web-nginx-flask/{OTHER}"],
+            "web-nginx-flask",
         ),
-        (shared("web-nginx-flask", GOLDEN, 2), ["version 1, not 2"]),
-        (shared("web-nginx-flask", GOLDEN, 1, workers=2), [SETTINGS]),
-        (shared("web-nginx-flask", GOLDEN, 1, workers=1.0), [SETTINGS]),
-        (shared("web-nginx-flask", GOLDEN, 1, workers=True), [SETTINGS]),
-        (shared("web-nginx-flask", GOLDEN, 1, extra=1), [SETTINGS]),
-        (shared("web-nginx-flask", GOLDEN, 1, workers="1"), [SETTINGS]),
-        (fewer_settings, [SETTINGS]),
-        (other_file_and_settings, [SETTINGS]),
+        (shared("web-nginx-flask", GOLDEN, 2), ["version 1, not 2"], None),
+        (shared("web-nginx-flask", GOLDEN, 1, workers=2), [SETTINGS], None),
+        (shared("web-nginx-flask", GOLDEN, 1, workers=1.0), [SETTINGS], None),
+        (shared("web-nginx-flask", GOLDEN, 1, workers=True), [SETTINGS], None),
+        (shared("web-nginx-flask", GOLDEN, 1, extra=1), [SETTINGS], None),
+        (shared("web-nginx-flask", GOLDEN, 1, workers="1"), [SETTINGS], None),
+        (fewer_settings, [SETTINGS], None),
+        (other_file_and_settings, [SETTINGS], None),
         (
             shared("pg-primary", OTHER, 3, workers=4),
             [
@@ -485,12 +530,17 @@ def test_the_nodes_that_share_a_derived_image_describe_it_alike(catalog: Path) -
                 f"built on web-nginx-flask/{GOLDEN}, not pg-primary/{OTHER}",
                 SETTINGS,
             ],
+            "pg-primary",
         ),
-    ):
+    )
+    for change, differences, other in cases:
         edit_yaml(catalog, STORE, change)
         assert found(catalog) == [
-            ("blueprints/fixture-web.yaml", "overlay", differently(alias, *differences))
-            for alias in ("web", "web2")
+            *([not_golden(STORE, "db", other)] if other is not None else []),
+            *(
+                ("blueprints/fixture-web.yaml", "overlay", differently(alias, *differences))
+                for alias in ("web", "web2")
+            ),
         ]
 
 
@@ -581,6 +631,7 @@ def test_two_nodes_of_one_blueprint_and_three_descriptions_of_one_image(catalog:
     edit_yaml(catalog, WEB, odd)
     start = "describes the derived image fixture-web-app differently from the node web of"
     assert found(catalog) == [
+        not_golden(WEB, "web3", "web-nginx-flask"),
         (
             "blueprints/fixture-web.yaml",
             "overlay",

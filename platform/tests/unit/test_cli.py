@@ -127,9 +127,53 @@ def test_a_name_that_cannot_be_printed_stays_on_one_line(
     assert len(json.loads(capsys.readouterr().out)["findings"]) == 2
 
 
+def test_the_golden_images_table_is_the_release_s_or_the_one_of_a_directory_given(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    release = Path(sys.prefix).parent / "infra-data"
+    assert main(["catalog", "lint", str(FIXTURE_CATALOG), "--infra-data", str(release)]) == 0
+    assert capsys.readouterr() == ("no finding\n", "")
+    table = json.loads((release / "golden-images.json").read_text(encoding="utf-8"))
+    del table["blueprints"]["probe-client"]
+    (tmp_path / "golden-images.json").write_text(json.dumps(table), encoding="utf-8")
+    assert main(["catalog", "lint", f"--infra-data={tmp_path}", str(FIXTURE_CATALOG)]) == 1
+    missing = (
+        "golden: the golden image of the probe client is not in the golden images table: it has"
+        " no blueprint of that name\n"
+    )
+    assert capsys.readouterr() == (
+        f"blueprints/fixture-store.yaml: {missing}blueprints/fixture-web.yaml: {missing}"
+        "2 finding(s)\n",
+        "",
+    )
+
+
+@pytest.mark.parametrize(
+    ("content", "reason"),
+    [
+        (None, "No such file or directory"),
+        ("{}", "it is not such a table"),
+        ("not JSON", "it is not such a table"),
+        ('{"infra_pin": "x", "blueprints": {"secret": {}}}', "it is not such a table"),
+    ],
+)
+def test_a_table_that_cannot_be_read_ends_with_status_2_whatever_the_catalog(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], content: str | None, reason: str
+) -> None:
+    if content is not None:
+        (tmp_path / "golden-images.json").write_text(content, encoding="utf-8")
+    for catalog in (FIXTURE_CATALOG, tmp_path / "no-catalog"):
+        assert main(["catalog", "lint", str(catalog), "--infra-data", str(tmp_path)]) == 2
+        assert capsys.readouterr() == (
+            "",
+            f"potka: the golden images table (golden-images.json) cannot be read: {reason}\n",
+        )
+
+
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
+        (["catalog", "lint", "--infra-data"], "argument --infra-data: expected one argument"),
         ([], "the following arguments are required: COMMAND"),
         (["catalog"], "the following arguments are required: ACTION"),
         (["lint"], "argument COMMAND: invalid choice: 'lint'"),
@@ -156,15 +200,19 @@ def test_help_names_the_command_and_its_exit_status(capsys: pytest.CaptureFixtur
         main(["catalog", "lint", "--help"])
     assert caught.value.code == 0
     out = " ".join(capsys.readouterr().out.split())
-    assert out.startswith("usage: potka catalog lint [-h] [--json] [PATH]")
+    assert out.startswith("usage: potka catalog lint [-h] [--json] [--infra-data DIR] [PATH]")
     assert (
         "Check a catalog checkout: its layout and the form of each of its files and, once every"
         " file has its form, what the files say about each other. Exit status: 0 without a"
         " finding, 1 with findings (a path that is no catalog is one), 2 for a command line"
-        " that is not understood."
+        " that is not understood or a golden images table that cannot be read."
     ) in out
     assert "the catalog's root (default: the current directory)" in out
     assert "print the findings as one JSON object" in out
+    assert (
+        "--infra-data DIR the directory that holds golden-images.json (default: the release's"
+        " infra-data/)"
+    ) in out
 
 
 @pytest.mark.parametrize(
