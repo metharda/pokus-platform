@@ -1,0 +1,25 @@
+# A synthetic scenario, written for the platform's tests: a healthy system
+# with a misleading ticket.
+id: FIXTURE-CONTROL-000
+version: 1
+title: A healthy system and a vague complaint
+risk_level: low
+isolation: container
+blueprint: fixture-web
+split: dev
+tags: [web, control]
+parameters:
+  section:
+    type: choice
+    values: [shop, blog, help]
+preconditions: []
+setup: []
+inject: []
+confirm:
+  - probe: http_get
+    params: {node: web, endpoint: site, status: 200}
+confirm_timeout_seconds: 30
+settle_seconds: 0
+ticket: |
+  Somebody mentioned that the ${section} pages felt slow this morning. Please
+  check whether anything is wrong with the site.

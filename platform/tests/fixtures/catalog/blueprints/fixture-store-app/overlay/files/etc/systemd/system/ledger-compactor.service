@@ -1,0 +1,6 @@
+[Unit]
+Description=Compact a batch of the ledger's old entries
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ledger-compactor /etc/fixture-store/compactor.conf

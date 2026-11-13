@@ -1,0 +1,31 @@
+# A synthetic blueprint description, written for the platform's tests:
+# one database node with a background job from a derived image.
+name: fixture-store
+version: 1
+probe_client: {blueprint: probe-client, version: 1.0.0}
+nodes:
+  - alias: db
+    golden: {blueprint: pg-primary, version: 1.0.0}
+    derived: {name: fixture-store-app, version: 1}
+    services: [postgresql.service]
+    components:
+      - name: ledger-compactor
+        settings_file: /etc/fixture-store/compactor.conf
+        settings:
+          batch_entries: 1000
+          parallel: 1
+    allowed_read_paths:
+      - /etc/postgresql
+      - /etc/fixture-store
+      - /var/log/postgresql
+      - /var/tmp
+    patchable_paths:
+      - path: /etc/fixture-store
+        validator: null
+    endpoints:
+      - {name: sql, scheme: tcp, port: 5432, path: null}
+health:
+  - probe: unit_state
+    params: {node: db, unit: postgresql.service, state: active}
+  - probe: pg_ready
+    params: {node: db}

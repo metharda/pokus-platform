@@ -1,0 +1,21 @@
+fault:
+  category: resource.disk_full
+  component: the database node's temporary volume
+  location: /var/tmp
+diagnosis:
+  accepted_labels: [resource.disk_full]
+actions:
+  acceptable:
+    - tool: remove_file
+      args: {node: db}
+  then_required: []
+  harmful:
+    - tool: stop_service
+      args: {node: db, unit: postgresql.service}
+verification:
+  - probe: disk_usage_below
+    params: {node: db, mount: /var/tmp, percent: 90}
+collateral:
+  - probe: unit_state
+    params: {node: db, unit: postgresql.service, state: active}
+resolution_state: The temporary volume has free space again.

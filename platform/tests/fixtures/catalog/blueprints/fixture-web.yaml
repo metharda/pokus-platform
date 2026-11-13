@@ -1,0 +1,32 @@
+# A synthetic blueprint description, written for the platform's tests:
+# one web node with a background job from a derived image.
+name: fixture-web
+version: 1
+probe_client: {blueprint: probe-client, version: 1.0.0}
+nodes:
+  - alias: web
+    golden: {blueprint: web-nginx-flask, version: 1.0.0}
+    derived: {name: fixture-web-app, version: 1}
+    services: [nginx.service, webapp.service]
+    components:
+      - name: report-builder
+        settings_file: /etc/fixture-app/report-builder.conf
+        settings:
+          workers: 1
+          batch_size: 50
+    allowed_read_paths:
+      - /etc/nginx
+      - /etc/fixture-app
+      - /var/log/nginx
+    patchable_paths:
+      - path: /etc/nginx
+        validator: [nginx, -t]
+      - path: /etc/fixture-app
+        validator: null
+    endpoints:
+      - {name: site, scheme: http, port: 80, path: /}
+health:
+  - probe: unit_state
+    params: {node: web, unit: nginx.service, state: active}
+  - probe: http_get
+    params: {node: web, endpoint: site, status: 200}

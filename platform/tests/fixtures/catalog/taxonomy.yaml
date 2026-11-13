@@ -1,0 +1,17 @@
+# A synthetic taxonomy, written for the platform's tests.
+version: 1
+labels:
+  - name: none
+    description: Nothing is wrong with the system.
+  - name: unknown
+    description: Something is wrong that no other label names.
+  - name: config.syntax_error
+    description: A service cannot parse its configuration file.
+  - name: config.wrong_value
+    description: A configuration file parses but holds a value that breaks the service.
+  - name: resource.disk_full
+    description: A file system has no space left.
+  - name: resource.cpu_saturated
+    description: A process uses all the processor time it can get.
+  - name: service.stopped
+    description: A service that should run is not running.

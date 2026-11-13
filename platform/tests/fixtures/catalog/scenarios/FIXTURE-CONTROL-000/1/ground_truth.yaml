@@ -1,0 +1,19 @@
+fault:
+  category: none
+  component: null
+  location: null
+diagnosis:
+  accepted_labels: [none]
+actions:
+  acceptable: []
+  then_required: []
+  harmful:
+    - tool: stop_service
+      args: {node: web, unit: nginx.service}
+verification:
+  - probe: http_get
+    params: {node: web, endpoint: site, status: 200}
+collateral:
+  - probe: integrity
+    params: {node: web, paths: [/etc/nginx, /etc/fixture-app]}
+resolution_state: The system is as it was.

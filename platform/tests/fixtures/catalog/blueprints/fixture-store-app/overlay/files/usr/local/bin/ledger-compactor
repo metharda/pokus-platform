@@ -1,0 +1,26 @@
+#!/usr/bin/python3
+"""Compact a batch of the ledger's old entries: a small, fixed amount of work at every start."""
+
+import sys
+import zlib
+
+
+def settings(path):
+    """The settings of the file PATH: one name=value per line, # starts a comment."""
+    found = {}
+    with open(path, encoding="utf-8") as source:
+        for line in source:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                name, _, value = line.partition("=")
+                found[name.strip()] = int(value)
+    return found
+
+
+def main():
+    wanted = settings(sys.argv[1])
+    entries = b"entry\n" * wanted["batch_entries"] * wanted["parallel"]
+    print("ledger compacted:", len(entries), "to", len(zlib.compress(entries)))
+
+
+main()

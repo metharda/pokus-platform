@@ -9,6 +9,7 @@ exclude-newer-span = "P7D"
 [manifest]
 members = [
     "potka-agent",
+    "potka-cli",
     "potka-core",
     "potka-db",
     "potka-evaluator",
@@ -611,6 +612,17 @@ wheels = [
 name = "potka-agent"
 version = "0.0.0"
 source = { editable = "packages/potka-agent" }
+
+[[package]]
+name = "potka-cli"
+version = "0.0.0"
+source = { editable = "packages/potka-cli" }
+dependencies = [
+    { name = "potka-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "potka-core", editable = "packages/potka-core" }]
 
 [[package]]
 name = "potka-core"
