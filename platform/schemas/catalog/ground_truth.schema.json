@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "description": "A tool call: the tool, and the arguments a matching call has.",
+      "properties": {
+        "args": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "The arguments a matching call has; strings may use the parameters as ${name}.",
+          "title": "Args",
+          "type": "object"
+        },
+        "tool": {
+          "description": "The tool's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "args"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "Actions": {
+      "additionalProperties": false,
+      "description": "The actions that count: acceptable ones, those required after them, harmful ones.",
+      "properties": {
+        "acceptable": {
+          "description": "The actions that count as acceptable.",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Acceptable",
+          "type": "array"
+        },
+        "harmful": {
+          "description": "The actions that count as harmful.",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Harmful",
+          "type": "array"
+        },
+        "then_required": {
+          "description": "Actions required after an acceptable one.",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Then Required",
+          "type": "array"
+        }
+      },
+      "required": [
+        "acceptable",
+        "then_required",
+        "harmful"
+      ],
+      "title": "Actions",
+      "type": "object"
+    },
+    "Diagnosis": {
+      "additionalProperties": false,
+      "description": "The labels a correct diagnosis may carry.",
+      "properties": {
+        "accepted_labels": {
+          "description": "The labels that count as correct, the fault's category among them.",
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Accepted Labels",
+          "type": "array"
+        }
+      },
+      "required": [
+        "accepted_labels"
+      ],
+      "title": "Diagnosis",
+      "type": "object"
+    },
+    "Fault": {
+      "additionalProperties": false,
+      "description": "The fault: its taxonomy label, the component it is in and where there.",
+      "properties": {
+        "category": {
+          "description": "The fault's taxonomy label; none when nothing is wrong.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Category",
+          "type": "string"
+        },
+        "component": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The component the fault is in; null only without a fault.",
+          "title": "Component"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where in the component the fault is; null only without a fault.",
+          "title": "Location"
+        }
+      },
+      "required": [
+        "category",
+        "component",
+        "location"
+      ],
+      "title": "Fault",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Probe": {
+      "additionalProperties": false,
+      "description": "A probe to run, with its parameters.",
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "Its parameters; their strings may use the scenario's parameters as ${name}.",
+          "title": "Params",
+          "type": "object"
+        },
+        "probe": {
+          "description": "The probe's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Probe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "params",
+        "probe"
+      ],
+      "title": "Probe",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A scenario's ground truth (ground_truth.yaml).",
+  "properties": {
+    "actions": {
+      "$ref": "#/$defs/Actions",
+      "description": "The actions that count for or against the agent."
+    },
+    "collateral": {
+      "description": "Probes that fail when something else was damaged.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Collateral",
+      "type": "array"
+    },
+    "diagnosis": {
+      "$ref": "#/$defs/Diagnosis",
+      "description": "What a correct diagnosis says."
+    },
+    "fault": {
+      "$ref": "#/$defs/Fault",
+      "description": "What is wrong."
+    },
+    "resolution_state": {
+      "description": "The state the target is in once the fault is resolved, in words.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Resolution State",
+      "type": "string"
+    },
+    "verification": {
+      "description": "Probes that pass once the fault is resolved.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Verification",
+      "type": "array"
+    }
+  },
+  "required": [
+    "fault",
+    "diagnosis",
+    "actions",
+    "verification",
+    "collateral",
+    "resolution_state"
+  ],
+  "title": "GroundTruth",
+  "type": "object"
+}

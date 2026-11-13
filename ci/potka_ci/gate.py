@@ -22,7 +22,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from potka_ci import build, commits, contract, privacy, references, todos
+from potka_ci import build, commits, contract, generated, privacy, references, todos
 from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
@@ -180,6 +180,7 @@ def run(
                 tool("pytest", ["-q", "-p", "no:cacheprovider"], platform, tests_env)
             ),
         ),
+        ("generated", lambda: generated.run(root)),
         ("contract", lambda: contract.run(root, infra)),
         ("build", lambda: build.run(root, infra, uv, python)),
         ("privacy", lambda: run_on_push(root, env, privacy.run)),

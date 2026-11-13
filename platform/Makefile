@@ -62,6 +62,14 @@ lint: ## ruff, ruff format, mypy (strict) and actionlint (with ShellCheck)
 test: ## The tests of the packages and of the repository checks (INFRA=<path> for the database tests)
 	$(if $(INFRA),POTKA_INFRA="$(abspath $(INFRA))") $(RUN) pytest -q -p no:cacheprovider
 
+.PHONY: schemas
+schemas: ## Write the JSON Schemas of the catalog's files (schemas/catalog/) from their models
+	$(CHECK) generated --write
+
+.PHONY: generated
+generated: ## The committed generated files match a fresh generation
+	$(CHECK) generated
+
 .PHONY: contract
 contract: ## The release against pokus-infrastructure's contract at INFRA_PIN (INFRA=<path>)
 	$(NEED_INFRA)

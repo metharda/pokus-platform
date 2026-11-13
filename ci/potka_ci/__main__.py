@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from potka_ci import build, commits, contract, gate, privacy, references, todos
+from potka_ci import build, commits, contract, gate, generated, privacy, references, todos
 from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
@@ -33,6 +33,8 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("--infra", type=Path, required=True, help="pokus-infrastructure at INFRA_PIN")
     b.add_argument("--uv", default="uv", help="the uv executable")
     b.add_argument("--python", required=True, help="the Python version the build uses (X.Y.Z)")
+    n = checks.add_parser("generated", help="the committed generated files are up to date")
+    n.add_argument("--write", action="store_true", help="write the files instead of comparing")
     checks.add_parser("verify-todos", help="list the open verification markers")
     g = checks.add_parser("gate", help="every check once, with one summary line")
     g.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
@@ -78,6 +80,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         outcome = contract.run(ROOT, args.infra.resolve())
     elif args.check == "build":
         outcome = build.run(ROOT, args.infra.resolve(), args.uv, args.python)
+    elif args.check == "generated":
+        outcome = generated.run(ROOT, args.write)
     else:
         outcome = todos.run(ROOT)
         # make verify-todos fails while any marker remains (the gate warns).

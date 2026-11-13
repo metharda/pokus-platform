@@ -37,6 +37,13 @@ def test_no_run_script_holds_an_expression() -> None:
     assert [where for where, script in scripts if "${{" in script] == []
 
 
+def test_the_required_job_needs_every_other_job() -> None:
+    workflow = yaml.safe_load((WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+    jobs = set(workflow["jobs"])
+    assert "generated" in jobs
+    assert set(workflow["jobs"]["required"]["needs"]) == jobs - {"required"}
+
+
 def test_the_walk_finds_an_expression_in_a_run_script() -> None:
     workflow = yaml.safe_load(
         "jobs:\n  a:\n    steps:\n      - run: echo ok\n      - run: echo ${{ github.ref_name }}\n"

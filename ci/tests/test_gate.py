@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import Repo
 
-from potka_ci import build, commits, contract, gate, privacy, references, todos
+from potka_ci import build, commits, contract, gate, generated, privacy, references, todos
 from potka_ci.outcome import Outcome
 
 
@@ -25,6 +25,7 @@ def steps(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
         return Outcome("passed", [f"{name} ok"])
 
     monkeypatch.setattr(gate, "tool", tool)
+    monkeypatch.setattr(generated, "run", fixed(Outcome("passed", ["4 generated file(s)"])))
     monkeypatch.setattr(contract, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(build, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(privacy, "run", fixed(Outcome("warning", ["no denylist", "privacy: 3"])))
@@ -39,8 +40,8 @@ def test_the_summary_line_and_what_follows_it(repo: Repo, steps: pytest.MonkeyPa
     ok = gate.run(repo.path, None, printer=lines.append)
     assert ok is False
     assert lines == [
-        "gate: 6 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract, build),"
-        " 1 warnings (12 steps; pytest: 12 passed)",
+        "gate: 7 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract, build),"
+        " 1 warnings (13 steps; pytest: 12 passed)",
         "skipped: actionlint: no .github/workflows/ci.yml",
         "skipped: shellcheck: no shell script (tests/*/*.sh)",
         "skipped: contract: no checkout",
@@ -67,6 +68,7 @@ def test_verbose_prints_every_step(repo: Repo, steps: pytest.MonkeyPatch) -> Non
     assert "--- ruff: passed" in lines
     assert "ruff ok" in lines
     assert "--- commits: passed" in lines
+    assert lines[lines.index("--- generated: passed") + 1] == "4 generated file(s)"
 
 
 def test_a_missing_tool_fails(tmp_path: Path) -> None:
@@ -85,7 +87,7 @@ def test_a_step_that_raises_fails_and_the_gate_goes_on(
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append) is False
     assert lines[0].startswith(
-        "gate: 6 passed, 2 failed, 3 skipped (actionlint, shellcheck, contract)"
+        "gate: 7 passed, 2 failed, 3 skipped (actionlint, shellcheck, contract)"
     )
     assert "--- build: failed" in lines
     assert lines[-1] == "a.md:1:1: plan-step"
