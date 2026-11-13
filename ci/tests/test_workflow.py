@@ -44,6 +44,26 @@ def test_the_required_job_needs_every_other_job() -> None:
     assert set(workflow["jobs"]["required"]["needs"]) == jobs - {"required"}
 
 
+def test_the_generated_job_compares_with_the_infrastructure_at_the_pin() -> None:
+    # Without the checkout the check is skipped: the job must bring it, at INFRA_PIN.
+    workflow = yaml.safe_load((WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["generated"]
+    assert job["defaults"]["run"]["working-directory"] == "pokus-platform/platform"
+    checkouts = [
+        step["with"] for step in job["steps"] if "actions/checkout@" in step.get("uses", "")
+    ]
+    assert [with_.get("path") for with_ in checkouts] == ["pokus-platform", "pokus-infrastructure"]
+    assert checkouts[1]["repository"].endswith("/pokus-infrastructure")
+    assert checkouts[1]["fetch-depth"] == 0
+    scripts = [step["run"] for step in job["steps"] if "run" in step]
+    assert scripts == [
+        'git -C ../../pokus-infrastructure checkout --quiet --detach "$(cat ../INFRA_PIN)"',
+        "make setup generated INFRA=../../pokus-infrastructure",
+    ]
+    assert "continue-on-error" not in job
+    assert not [step for step in job["steps"] if "continue-on-error" in step or "if" in step]
+
+
 def test_the_walk_finds_an_expression_in_a_run_script() -> None:
     workflow = yaml.safe_load(
         "jobs:\n  a:\n    steps:\n      - run: echo ok\n      - run: echo ${{ github.ref_name }}\n"

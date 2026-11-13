@@ -180,7 +180,7 @@ def run(
                 tool("pytest", ["-q", "-p", "no:cacheprovider"], platform, tests_env)
             ),
         ),
-        ("generated", lambda: generated.run(root)),
+        ("generated", lambda: generated.run(root, infra)),
         ("contract", lambda: contract.run(root, infra)),
         ("build", lambda: build.run(root, infra, uv, python)),
         ("privacy", lambda: run_on_push(root, env, privacy.run)),

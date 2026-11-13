@@ -34,7 +34,12 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("--uv", default="uv", help="the uv executable")
     b.add_argument("--python", required=True, help="the Python version the build uses (X.Y.Z)")
     n = checks.add_parser("generated", help="the committed generated files are up to date")
-    n.add_argument("--write", action="store_true", help="write the files instead of comparing")
+    n.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
+    n.add_argument(
+        "--write",
+        choices=["schemas", "golden-images"],
+        help="write the files of one kind instead of comparing every file",
+    )
     checks.add_parser("verify-todos", help="list the open verification markers")
     g = checks.add_parser("gate", help="every check once, with one summary line")
     g.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
@@ -81,7 +86,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.check == "build":
         outcome = build.run(ROOT, args.infra.resolve(), args.uv, args.python)
     elif args.check == "generated":
-        outcome = generated.run(ROOT, args.write)
+        infra = args.infra.resolve() if args.infra else None
+        if args.write:
+            outcome = generated.write(ROOT, args.write, infra)
+        else:
+            outcome = generated.run(ROOT, infra)
     else:
         outcome = todos.run(ROOT)
         # make verify-todos fails while any marker remains (the gate warns).

@@ -14,6 +14,7 @@ def fixed(outcome: Outcome) -> object:
 
 
 TOOL_ENVS: list[dict[str, str] | None] = []
+GENERATED_INFRA: list[Path | None] = []
 
 
 @pytest.fixture
@@ -25,7 +26,12 @@ def steps(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
         return Outcome("passed", [f"{name} ok"])
 
     monkeypatch.setattr(gate, "tool", tool)
-    monkeypatch.setattr(generated, "run", fixed(Outcome("passed", ["4 generated file(s)"])))
+
+    def generated_run(root: Path, infra: Path | None = None) -> Outcome:
+        GENERATED_INFRA.append(infra)
+        return Outcome("passed", ["4 generated file(s)"])
+
+    monkeypatch.setattr(generated, "run", generated_run)
     monkeypatch.setattr(contract, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(build, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(privacy, "run", fixed(Outcome("warning", ["no denylist", "privacy: 3"])))
@@ -57,9 +63,30 @@ def test_the_tests_get_the_infrastructure_checkout(
     repo: Repo, steps: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     TOOL_ENVS.clear()
+    GENERATED_INFRA.clear()
     gate.run(repo.path, None, printer=lambda line: None)
     gate.run(repo.path, tmp_path / "infra", printer=lambda line: None)
     assert TOOL_ENVS == [None, {"POTKA_INFRA": str((tmp_path / "infra").resolve())}]
+    assert GENERATED_INFRA == [None, tmp_path / "infra"]
+
+
+def test_the_generated_step_is_skipped_or_fails_as_its_check_says(
+    repo: Repo, steps: pytest.MonkeyPatch
+) -> None:
+    not_compared = "4 generated file(s) match; the table was not compared: no checkout"
+    steps.setattr(generated, "run", fixed(Outcome("skipped", [not_compared])))
+    lines: list[str] = []
+    assert gate.run(repo.path, None, printer=lines.append) is False
+    assert lines[0] == (
+        "gate: 6 passed, 1 failed, 5 skipped (actionlint, shellcheck, generated, contract, build),"
+        " 1 warnings (13 steps; pytest: 12 passed)"
+    )
+    assert f"skipped: generated: {not_compared}" in lines
+    steps.setattr(generated, "run", fixed(Outcome("failed", ["a.schema.json: differs"])))
+    lines.clear()
+    assert gate.run(repo.path, None, printer=lines.append) is False
+    assert lines[0].startswith("gate: 6 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
+    assert lines[lines.index("--- generated: failed") + 1] == "a.schema.json: differs"
 
 
 def test_verbose_prints_every_step(repo: Repo, steps: pytest.MonkeyPatch) -> None:

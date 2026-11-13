@@ -1,6 +1,6 @@
 # The Pokus Platform's development targets; CI calls the same ones.
 # INFRA names a checkout of pokus-infrastructure at the commit of INFRA_PIN
-# (the contract and build checks need it).
+# (the contract, build and generated checks and make golden-images need it).
 #
 # The file BUILD_PYTHON at the repository's root holds the one Python
 # version of the development environment, the build check, the gate and CI.
@@ -64,11 +64,17 @@ test: ## The tests of the packages and of the repository checks (INFRA=<path> fo
 
 .PHONY: schemas
 schemas: ## Write the JSON Schemas of the catalog's files (schemas/catalog/) from their models
-	$(CHECK) generated --write
+	$(CHECK) generated --write schemas
+
+.PHONY: golden-images
+golden-images: ## Write infra-data/golden-images.json from pokus-infrastructure's blueprints at INFRA_PIN (INFRA=<path>)
+	$(NEED_INFRA)
+	$(CHECK) generated --write golden-images --infra "$(INFRA)"
 
 .PHONY: generated
-generated: ## The committed generated files match a fresh generation
-	$(CHECK) generated
+generated: ## The committed generated files match a fresh generation (INFRA=<path>)
+	$(NEED_INFRA)
+	$(CHECK) generated --infra "$(INFRA)"
 
 .PHONY: contract
 contract: ## The release against pokus-infrastructure's contract at INFRA_PIN (INFRA=<path>)

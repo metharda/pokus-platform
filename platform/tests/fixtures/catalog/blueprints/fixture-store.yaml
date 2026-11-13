@@ -2,10 +2,10 @@
 # one database node with a background job from a derived image.
 name: fixture-store
 version: 1
-probe_client: {blueprint: probe-client, version: 1.0.0}
+probe_client: {blueprint: probe-client, version: 1.0.1}
 nodes:
   - alias: db
-    golden: {blueprint: pg-primary, version: 1.0.0}
+    golden: {blueprint: pg-primary, version: 1.0.1}
     derived: {name: fixture-store-app, version: 1}
     services: [postgresql.service]
     components:
