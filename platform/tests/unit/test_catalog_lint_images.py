@@ -1135,6 +1135,103 @@ def test_the_terms_follow_the_catalog(catalog: Path) -> None:
     ]
 
 
+def uses(root: Path, label: str, scenario: str = "FIXTURE-001", *, category: bool = False) -> None:
+    """List LABEL in the taxonomy and use it in SCENARIO's ground truth.
+
+    The ground truth accepts it, beside its other labels, and with CATEGORY
+    has it as its fault's category too.
+    """
+
+    def listed(d: Any) -> None:
+        if label not in [entry["name"] for entry in d["labels"]]:
+            d["labels"].append({"name": label, "description": "A label of this test."})
+
+    def used(d: Any) -> None:
+        if label not in d["diagnosis"]["accepted_labels"]:
+            d["diagnosis"]["accepted_labels"].append(label)
+        if category:
+            d["fault"]["category"] = label
+
+    edit_yaml(root, "taxonomy.yaml", listed)
+    edit_yaml(root, f"scenarios/{scenario}/1/ground_truth.yaml", used)
+
+
+@pytest.mark.parametrize("category", [False, True], ids=["accepted", "category"])
+@pytest.mark.parametrize("label", ["service", "settings", "disk_full", "x9"])
+def test_a_label_of_one_part_is_no_term_of_an_overlay(
+    catalog: Path, label: str, category: bool
+) -> None:
+    # The fixture's own overlays hold the words service and settings, in paths and in files.
+    uses(catalog, label, category=category)
+    write(
+        catalog,
+        f"{WEB_OVERLAY}/files/etc/{label}/{label}.conf",
+        f"{label}\n[{label.upper()}]\n{label} = {label}.{label}\n",
+    )
+    script = (catalog / STORE_OVERLAY / "install.sh").read_text(encoding="utf-8")
+    write(catalog, f"{STORE_OVERLAY}/install.sh", f"{script}# {label.capitalize()}\n")
+    assert found(catalog) == []
+    # The label is a ground truth's: the same word in that scenario's ticket is a finding.
+    edit_yaml(catalog, ONE, lambda d: d.update(ticket=f"The {label} is broken."))
+    assert found(catalog) == [
+        (ONE, "ticket", f"the ticket holds the label {label} of its ground truth")
+    ]
+
+
+def test_a_label_of_two_or_more_parts_is_a_term_of_an_overlay_beside_its_first_part(
+    catalog: Path,
+) -> None:
+    uses(catalog, "config")
+    uses(catalog, "config.syntax_error")  # its label already: listed and accepted once
+    uses(catalog, "config.syntax_error.missing_semicolon")
+    uses(catalog, "resource", "FIXTURE-002", category=True)
+    path = write(
+        catalog,
+        f"{WEB_OVERLAY}/files/etc/config/resource.d/x",
+        "config resource\nconfig.syntax_error\nconfig.syntax_error.missing_semicolon\n"
+        "resource.disk_full\n",
+    )
+    named = write(catalog, f"{STORE_OVERLAY}/files/etc/config.syntax_error.d/config")
+    assert found(catalog) == [
+        (
+            named,
+            "leakage",
+            "its path holds the label config.syntax_error, which a ground truth uses",
+        ),
+        (path, "leakage", "line 2 holds the label config.syntax_error, which a ground truth uses"),
+        (
+            path,
+            "leakage",
+            "line 3 holds the label config.syntax_error.missing_semicolon, which a ground truth"
+            " uses",
+        ),
+        (path, "leakage", "line 4 holds the label resource.disk_full, which a ground truth uses"),
+    ]
+
+
+@pytest.mark.parametrize("category", [False, True], ids=["accepted", "category"])
+def test_a_label_of_one_part_is_a_term_of_its_own_scenario_s_ticket(
+    catalog: Path, category: bool
+) -> None:
+    uses(catalog, "service", category=category)
+    held = ["the ticket holds the label service of its ground truth"]
+    assert ticket(catalog, "The service is down.") == held
+    assert ticket(catalog, "SERVICE: down (service.stopped)") == held
+    assert ticket(catalog, "The services are down: a service_x, myservice, service9.") == []
+    assert ticket(catalog, "The pages do not load.") == []
+    assert ticket(catalog, "The service is down.", TWO) == []
+
+
+def test_one_word_is_a_finding_in_the_ticket_and_none_in_the_overlays(catalog: Path) -> None:
+    uses(catalog, "settings")
+    conf = (catalog / WEB_OVERLAY / "files/etc/fixture-app/report-builder.conf").read_text("utf-8")
+    assert "Settings of the report builder" in conf
+    edit_yaml(catalog, ONE, lambda d: d.update(ticket="Somebody changed the settings."))
+    assert found(catalog) == [
+        (ONE, "ticket", "the ticket holds the label settings of its ground truth")
+    ]
+
+
 def test_without_a_table_given_the_release_s_must_be_readable(
     catalog: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

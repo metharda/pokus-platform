@@ -82,19 +82,24 @@ The rules:
     A scenario's ticket holds none of: the ID of a scenario of the catalog
     or a fault primitive's name (as a whole word, in any case); a label of
     its own ground truth other than ``none`` and ``unknown`` (likewise);
-    ``pokus``, ``pinka`` or ``potka`` (anywhere, in any case). It is read
-    as it is written, a parameter's name aside, and as its instances
-    read: with every combination of the values of the choices it uses, a
-    range at its smallest value. A ticket with too many combinations to
-    read is a finding, and is still read as it is written.
+    ``pokus``, ``pinka`` or ``potka`` (anywhere, in any case). A label of
+    one part is a term here like any other: a ticket states symptoms, not
+    causes. It is read as it is written, a parameter's name aside, and as
+    its instances read: with every combination of the values of the
+    choices it uses, a range at its smallest value. A ticket with too
+    many combinations to read is a finding, and is still read as it is
+    written.
 ``leakage``
     What an overlay adds to an image tells nothing of the scenarios: no
     file's path below the overlay and no file's content holds the ID of a
-    scenario, a fault primitive's name or a label a ground truth uses
-    other than ``none`` and ``unknown`` (as a whole word, in any case), nor
+    scenario, a fault primitive's name or a label of two or more parts
+    that a ground truth uses (as a whole word, in any case), nor
     ``accepted_labels``, ``then_required``, ``resolution_state``,
     ``pokus``, ``pinka`` or ``potka`` (anywhere, in any case); and no path
-    has a ``.git`` component, in any case.
+    has a ``.git`` component, in any case. A label of one part, a name
+    without a dot such as ``config``, is no term here: an image is the
+    same in every run on its blueprint, the controls included, so a
+    common word in it tells nothing of a run's fault.
 
 A whole word is not preceded or followed by a letter, a digit or an
 underscore.
@@ -759,6 +764,7 @@ def _leakage(catalog: Catalog) -> Iterator[Finding]:
         *(
             _word(f"the label {label}, which a ground truth uses", label)
             for label in _labels_of(catalog.scenarios)
+            if "." in label  # a label of one part is a common word
         ),
     ]
     for name, overlay in sorted(catalog.overlays.items()):
