@@ -1,6 +1,11 @@
 # The Pokus Platform's development targets; CI calls the same ones.
 # INFRA names a checkout of pokus-infrastructure at the commit of INFRA_PIN
 # (the contract, build and generated checks and make golden-images need it).
+# CATALOG names a checkout of a catalog, which the catalog-* targets lint and
+# check by this repository's rules; a relative path is taken from this
+# directory. ROOT_COMMIT is that repository's root commit: its author is the
+# author and, a merge made on github.com aside, the committer that every
+# commit of the catalog must have.
 #
 # The file BUILD_PYTHON at the repository's root holds the one Python
 # version of the development environment, the build check, the gate and CI.
@@ -15,6 +20,8 @@ MAKEFLAGS += --no-builtin-rules
 
 UV ?= uv
 INFRA ?=
+CATALOG ?=
+ROOT_COMMIT ?=
 VERBOSE ?=
 
 ifneq ($(origin BUILD_PYTHON),undefined)
@@ -32,10 +39,11 @@ RUN := $(UV) run --locked --all-packages --group contract
 CHECK := PYTHONPATH=$(abspath ../ci) $(RUN) python -m potka_ci
 CODE := packages tests ../ci
 NEED_INFRA = @test -n "$(INFRA)" || { echo "$@: INFRA=<path of the pokus-infrastructure checkout at INFRA_PIN>"; exit 2; }
+NEED_CATALOG = @test -n "$(CATALOG)" || { echo "$@: CATALOG=<path of the catalog checkout>"; exit 2; }
 
 .PHONY: help
 help: ## List the targets
-	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
+	@grep -E '^[a-z][a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-19s %s\n", $$1, $$2}'
 
 .PHONY: setup
 setup: ## Python (../BUILD_PYTHON) in .python/, then the locked development environment (.venv)
@@ -97,6 +105,27 @@ references: ## No reference outside the product's own terms
 .PHONY: commits
 commits: ## Every commit of the range is the maintainer's
 	$(CHECK) commits
+
+.PHONY: catalog-lint
+catalog-lint: ## potka catalog lint on a catalog checkout (CATALOG=<path>)
+	$(NEED_CATALOG)
+	$(RUN) potka catalog lint "$(CATALOG)"
+
+.PHONY: catalog-privacy
+catalog-privacy: ## The privacy scan of a catalog checkout (CATALOG=<path>)
+	$(NEED_CATALOG)
+	$(CHECK) privacy --root "$(CATALOG)"
+
+.PHONY: catalog-references
+catalog-references: ## The references check of a catalog checkout (CATALOG=<path>)
+	$(NEED_CATALOG)
+	$(CHECK) references --root "$(CATALOG)"
+
+.PHONY: catalog-commits
+catalog-commits: ## The commit check of a catalog checkout (CATALOG=<path> ROOT_COMMIT=<its root commit>)
+	$(NEED_CATALOG)
+	@test -n "$(ROOT_COMMIT)" || { echo "$@: ROOT_COMMIT=<the root commit of the catalog's repository>"; exit 2; }
+	$(CHECK) commits --root "$(CATALOG)" --root-commit "$(ROOT_COMMIT)"
 
 .PHONY: verify-todos
 verify-todos: ## List the open verification markers; fails while any remain (the gate warns)

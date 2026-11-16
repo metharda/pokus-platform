@@ -1,4 +1,13 @@
-"""Command line: ``python -m potka_ci <check> [options]``."""
+"""Command line: ``python -m potka_ci <check> [options]``.
+
+The privacy, references and commit checks read this repository, or with
+``--root`` another checkout, by the same rules: the rules are this
+repository's files, and the tree, the history and the range are the other
+checkout's. A relative path is taken from the working directory; a path
+that is this repository is refused, so that a wrong path cannot check this
+repository in another's place. The commit check takes that repository's
+root commit with ``--root-commit``.
+"""
 
 from __future__ import annotations
 
@@ -6,13 +15,23 @@ import argparse
 import os
 import sys
 from collections.abc import Sequence
+from functools import partial
 from pathlib import Path
 
 from potka_ci import build, commits, contract, gate, generated, privacy, references, todos
 from potka_ci.outcome import Outcome
-from potka_ci.push import run_on_push
+from potka_ci.push import SHA_RE, run_on_push
+from potka_ci.repo import GitError, git
 
 ROOT = Path(__file__).resolve().parents[2]
+# The checks that read a checkout and nothing else of this repository but their rules.
+ELSEWHERE = ("privacy", "references", "commits")
+
+
+def _commit(text: str) -> str:
+    if not SHA_RE.fullmatch(text):
+        raise argparse.ArgumentTypeError("not a commit hash (40 hex digits)")
+    return text
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -24,9 +43,20 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     checks = parser.add_subparsers(dest="check", required=True, metavar="CHECK")
-    checks.add_parser("privacy", help="no personal or installation-specific data")
-    checks.add_parser("references", help="no reference outside the product's own terms")
-    checks.add_parser("commits", help="every commit of the range is the maintainer's")
+    p = checks.add_parser("privacy", help="no personal or installation-specific data")
+    r = checks.add_parser("references", help="no reference outside the product's own terms")
+    c = checks.add_parser("commits", help="every commit of the range is the maintainer's")
+    for elsewhere in (p, r, c):
+        elsewhere.add_argument(
+            "--root",
+            type=Path,
+            help="the checkout to check instead of this repository (the top of its working tree)",
+        )
+    c.add_argument(
+        "--root-commit",
+        type=_commit,
+        help="the root commit of the repository checked (this repository's when not given)",
+    )
     k = checks.add_parser("contract", help="the release against pokus-infrastructure's contract")
     k.add_argument("--infra", type=Path, required=True, help="pokus-infrastructure at INFRA_PIN")
     b = checks.add_parser("build", help="pokus-infrastructure's build of the release")
@@ -60,6 +90,43 @@ def _report(name: str, outcome: Outcome) -> int:
     return outcome.exit_code
 
 
+def _checkout(given: Path | None) -> Path:
+    """This repository, or the checkout given: the top of another git working tree.
+
+    Raises:
+        GitError: The path given is not the top of a git working tree (with
+            git's own refusal, when git gave one), or it is this repository.
+    """
+    if given is None:
+        return ROOT
+    root = given.resolve()
+    refusal = f"--root: {given} is not the top of a git working tree"
+    try:
+        top = Path(git(root, ["rev-parse", "--show-toplevel"]).rstrip("\n")).resolve()
+    except GitError as exc:
+        raise GitError(f"{refusal} ({exc})") from exc
+    if top != root:
+        raise GitError(refusal)
+    if root == ROOT.resolve():
+        raise GitError(f"--root: {given} is this repository, which is checked without --root")
+    return root
+
+
+def _elsewhere(args: argparse.Namespace) -> Outcome:
+    """Run the privacy, references or commit check on the checkout the arguments name."""
+    try:
+        root = _checkout(args.root)
+    except GitError as exc:
+        return Outcome("failed", [str(exc)])
+    if args.check == "privacy":
+        return run_on_push(root, os.environ, privacy.run)
+    if args.check == "references":
+        return references.run(root)
+    if args.root_commit is None:
+        return run_on_push(root, os.environ, commits.run)
+    return run_on_push(root, os.environ, partial(commits.run, root_commit=args.root_commit))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run one check.
 
@@ -75,12 +142,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         infra = args.infra.resolve() if args.infra else None
         ok = gate.run(ROOT, infra, args.uv, args.python, args.verbose)
         return 0 if ok else 1
-    if args.check == "privacy":
-        outcome = run_on_push(ROOT, os.environ, privacy.run)
-    elif args.check == "references":
-        outcome = references.run(ROOT)
-    elif args.check == "commits":
-        outcome = run_on_push(ROOT, os.environ, commits.run)
+    if args.check in ELSEWHERE:
+        outcome = _elsewhere(args)
     elif args.check == "contract":
         outcome = contract.run(ROOT, args.infra.resolve())
     elif args.check == "build":
