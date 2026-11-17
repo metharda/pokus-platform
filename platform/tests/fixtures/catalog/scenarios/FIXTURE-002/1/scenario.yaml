@@ -1,0 +1,30 @@
+# A synthetic scenario, written for the platform's tests: disk exhaustion.
+id: FIXTURE-002
+version: 1
+title: The database node's temporary volume is full
+risk_level: medium
+isolation: container
+blueprint: fixture-store
+split: dev
+tags: [database, disk]
+parameters:
+  percent:
+    type: range
+    min: 96
+    max: 100
+    step: 2
+preconditions:
+  - probe: disk_usage_below
+    params: {node: db, mount: /var/tmp, percent: 80}
+setup: []
+inject:
+  - primitive: disk.fill
+    params: {node: db, mount: /var/tmp, percent: "${percent}"}
+confirm:
+  - probe: disk_usage_below
+    params: {node: db, mount: /var/tmp, percent: 95, below: false}
+confirm_timeout_seconds: 60
+settle_seconds: 10
+ticket: |
+  The nightly import into the ledger failed. Its log says that it could not
+  write its temporary files; nothing else seems to be wrong with the database.

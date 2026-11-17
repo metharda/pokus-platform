@@ -2,12 +2,14 @@
 
 The expected identity is the author of the repository's root commit
 (``ROOT_COMMIT``), read from git when the check runs, so no identity is
-written in the repository; a history with any other root is refused. The
-commits checked are those of :func:`potka_ci.repo.push_range`: on a branch
-other than main, and in a run without a push event, every commit not on
-main yet (``origin/main..AFTER``); on a push to main, the push's
-``BEFORE..AFTER`` (the whole history without a known ``BEFORE``). A
-shallow checkout is refused: its cut-off history could hide commits.
+written in the repository; a history with any other root is refused.
+Another repository is checked with its own root commit, given on the
+command line. The commits checked are those of
+:func:`potka_ci.repo.push_range`: on a branch other than main, and in a
+run without a push event, every commit not on main yet
+(``origin/main..AFTER``); on a push to main, the push's ``BEFORE..AFTER``
+(the whole history without a known ``BEFORE``). A shallow checkout is
+refused: its cut-off history could hide commits.
 
 A merge made on github.com is accepted: two or more parents, the expected
 identity as its author, GitHub as its committer; it may carry GitHub's

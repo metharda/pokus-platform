@@ -11,7 +11,9 @@ from typing import Any
 import pytest
 from conftest import Repo
 from potka_core.endpoints import Endpoints
+from potka_core.images import GoldenEntry
 from potka_core.principals import Principals
+from pydantic import BaseModel
 
 from potka_ci import contract
 
@@ -44,6 +46,23 @@ print("platform potka 0.0.0 (python-uv)")
 """
 
 
+OURS: dict[str, type[BaseModel]] = {
+    "Principals": Principals,
+    "Endpoints": Endpoints,
+    "GoldenEntry": GoldenEntry,
+}
+
+
+def stand_in(model: contract.Model) -> dict[str, Any]:
+    """A schema file for MODEL: the model's own schema, as the definition it is of if any."""
+    schema: dict[str, Any] = OURS[model.target.partition(":")[2]].model_json_schema(by_alias=True)
+    if model.part is None:
+        return schema
+    defs = schema.pop("$defs", {})
+    assert model.part not in defs
+    return {"type": "object", "$defs": {**defs, model.part: schema}}
+
+
 @pytest.fixture
 def infra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
     """A stand-in pokus-infrastructure checkout with origin/main.
@@ -53,11 +72,10 @@ def infra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
     r = Repo(tmp_path / "infra")
     r.write("contract/platform-manifest.schema.json", json.dumps(SCHEMA))
     models = []
-    for name, schema, target, _ in contract.MODELS:
-        model = Principals if target.endswith(":Principals") else Endpoints
-        text = json.dumps(model.model_json_schema(by_alias=True))
-        r.write(schema.as_posix(), text)
-        models.append((name, schema, target, hashlib.sha256(text.encode()).hexdigest()))
+    for model in contract.MODELS:
+        text = json.dumps(stand_in(model))
+        r.write(model.schema.as_posix(), text)
+        models.append(model._replace(digest=hashlib.sha256(text.encode()).hexdigest()))
     monkeypatch.setattr(contract, "MODELS", tuple(models))
     r.write("tools/platform/pinka_platform/__init__.py", "")
     r.write("tools/platform/pinka_platform/__main__.py", FAKE_VALIDATOR)
@@ -95,11 +113,18 @@ def test_the_release_meets_the_contract(repo: Repo, infra: Repo) -> None:
     assert outcome.lines[0] == f"INFRA_PIN {pin} is on pokus-infrastructure's main"
     assert "the validator accepts the release:" in outcome.lines
     assert "  platform potka 0.0.0 (python-uv)" in outcome.lines
-    assert [name for name, _, _, _ in contract.MODELS] == ["principals.json", "endpoints.toml"]
-    for name, schema, _, digest in contract.MODELS:
+    assert [(model.name, model.place) for model in contract.MODELS] == [
+        ("principals.json", "contract/principals.schema.json"),
+        ("endpoints.toml", "contract/endpoints.schema.json"),
+        (
+            "a golden image's entry in the fingerprint",
+            "golden_image in contract/records/fingerprint.schema.json",
+        ),
+    ]
+    for model in contract.MODELS:
         assert (
-            f"potka-core's model of {name} has the fields of {schema.as_posix()},"
-            f" the schema it was written for (sha256 {digest[:12]})"
+            f"potka-core's model of {model.name} has the fields of {model.place},"
+            f" the schema it was written for (sha256 {model.digest[:12]})"
         ) in outcome.lines
     assert (
         f"the test job's PostgreSQL is the lab's (docs/reference/versions.md): {LAB_POSTGRES}"
@@ -233,8 +258,10 @@ def test_only_the_release_s_files_are_validated(repo: Repo, infra: Repo) -> None
     assert contract.run(repo.path, infra.path).status == "passed"
 
 
-def commit_schema(infra: Repo, schema: dict[str, Any]) -> None:
-    infra.write("contract/principals.schema.json", json.dumps(schema))
+def commit_schema(
+    infra: Repo, schema: dict[str, Any], path: str = "contract/principals.schema.json"
+) -> None:
+    infra.write(path, json.dumps(schema))
     infra.git("add", "-A")
     infra.commit("A schema change")
     infra.git("push", "-q", "origin", "main")
@@ -269,6 +296,74 @@ def test_any_other_change_of_a_schema_fails_by_its_sha256(repo: Repo, infra: Rep
     assert outcome.lines[0].endswith(
         ": check the model against it, then update the expected sha256"
     )
+
+
+FINGERPRINT_SCHEMA = "contract/records/fingerprint.schema.json"
+GOLDEN_ENTRY = "a golden image's entry in the fingerprint"
+
+
+def golden_entry_schema() -> dict[str, Any]:
+    return stand_in(next(model for model in contract.MODELS if model.part == "golden_image"))
+
+
+def test_a_model_of_a_definition_is_compared_with_that_definition(repo: Repo, infra: Repo) -> None:
+    schema = golden_entry_schema()
+    entry = schema["$defs"]["golden_image"]
+    assert sorted(entry["properties"]) == ["fingerprint", "nesting", "packages", "type"]
+    assert sorted(entry["required"]) == ["fingerprint", "nesting", "packages", "type"]
+    entry["properties"]["update_source"] = {"type": "string"}
+    del entry["properties"]["nesting"]
+    entry["required"] = ["fingerprint", "type"]
+    schema["$defs"]["Package"]["properties"]["status"] = {"type": "string"}
+    # A change outside the definition and what it refers to is no difference of the model's.
+    schema["properties"] = {"hash": {"type": "string"}}
+    commit_schema(infra, schema, FINGERPRINT_SCHEMA)
+    outcome = contract.run(platform_repo(repo, infra.head()).path, infra.path)
+    assert outcome.status == "failed"
+    differs = f"potka-core's model of {GOLDEN_ENTRY} differs from golden_image in"
+    assert outcome.lines[:-1] == [
+        f"{differs} {FINGERPRINT_SCHEMA}: /nesting: only in the model",
+        f"{differs} {FINGERPRINT_SCHEMA}: /update_source: only in the contract",
+        f"{differs} {FINGERPRINT_SCHEMA}: /packages: required only by the model",
+        f"{differs} {FINGERPRINT_SCHEMA}: /packages[]/status: only in the contract",
+    ]
+    assert outcome.lines[-1].startswith(
+        f"{FINGERPRINT_SCHEMA} is not the schema potka-core's model of"
+        f" {GOLDEN_ENTRY} was written for (sha256 "
+    )
+
+
+def test_a_change_outside_the_definition_fails_by_the_file_s_sha256(
+    repo: Repo, infra: Repo
+) -> None:
+    schema = golden_entry_schema()
+    schema["properties"] = {"hash": {"type": "string"}}
+    commit_schema(infra, schema, FINGERPRINT_SCHEMA)
+    outcome = contract.run(platform_repo(repo, infra.head()).path, infra.path)
+    assert outcome.status == "failed"
+    assert len(outcome.lines) == 1
+    assert outcome.lines[0].startswith(
+        f"{FINGERPRINT_SCHEMA} is not the schema potka-core's model of"
+        f" {GOLDEN_ENTRY} was written for (sha256 "
+    )
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object"},
+        {"$defs": {"other": {}}},
+        {"$defs": {"golden_image": "x"}},
+        {"$defs": []},
+        {"$defs": "golden_image"},
+        [],
+    ],
+)
+def test_a_schema_without_the_definition_fails(repo: Repo, infra: Repo, schema: Any) -> None:
+    commit_schema(infra, schema, FINGERPRINT_SCHEMA)
+    outcome = contract.run(platform_repo(repo, infra.head()).path, infra.path)
+    assert outcome.status == "failed"
+    assert outcome.lines == [f"{FINGERPRINT_SCHEMA} has no definition golden_image"]
 
 
 def test_a_missing_schema_fails_with_the_other_findings(repo: Repo, infra: Repo) -> None:

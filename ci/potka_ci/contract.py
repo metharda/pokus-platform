@@ -8,11 +8,12 @@ It checks, with a checkout of pokus-infrastructure:
   (``contract/platform-manifest.schema.json``, with jsonschema);
 * the project's own validator accepts the staged release
   (``python -m pinka_platform validate <release> --no-host-check``);
-* potka-core's models of the files infra writes (``principals.json``,
-  ``endpoints.toml``) have the field names and required fields of the
-  files' schemas there, and each schema is the one the model was written
-  for (its sha256, recorded here): any other change of a schema at a new
-  pin fails until the model is checked against it and the sha256 updated;
+* potka-core's models of what infra writes (``principals.json``,
+  ``endpoints.toml``, and a golden image's entry in the environment
+  fingerprint) have the field names and required fields of their schemas
+  there, and each schema is the one the model was written for (its
+  sha256, recorded here): any other change of a schema at a new pin fails
+  until the model is checked against it and the sha256 updated;
 * the PostgreSQL service of the workflow's ``test`` job is the lab's server:
   the image, tag and digest of the postgres row of
   ``docs/reference/versions.md`` there;
@@ -35,7 +36,7 @@ import tempfile
 import tomllib
 from importlib import metadata
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import jsonschema
 import yaml
@@ -47,20 +48,52 @@ PIN_FILE = "INFRA_PIN"
 PIN_RE = re.compile(r"[0-9a-f]{40}")
 SCHEMA = Path("contract") / "platform-manifest.schema.json"
 VALIDATOR_PATH = Path("tools") / "platform"
-# potka-core's models of the files infra writes: the file, its schema, the
-# model ("module:class") and the sha256 of the schema the model was written for.
-MODELS: tuple[tuple[str, Path, str, str], ...] = (
-    (
+
+
+class Model(NamedTuple):
+    """One of potka-core's models of what infra writes.
+
+    Attributes:
+        name: What the model reads.
+        schema: The schema file, relative to the checkout.
+        target: The model, as ``module:class``.
+        digest: The sha256 of the schema file the model was written for.
+        part: The definition of the schema (in its ``$defs``) the model is
+            of; None for the schema itself.
+    """
+
+    name: str
+    schema: Path
+    target: str
+    digest: str
+    part: str | None = None
+
+    @property
+    def place(self) -> str:
+        """The schema, or the definition in it, as the messages name it."""
+        file = self.schema.as_posix()
+        return file if self.part is None else f"{self.part} in {file}"
+
+
+MODELS: tuple[Model, ...] = (
+    Model(
         "principals.json",
         Path("contract") / "principals.schema.json",
         "potka_core.principals:Principals",
         "88752c2da679abdfaa2035b770ae56dd25a9ca74c10f6fc0676955d5e2fcdde2",
     ),
-    (
+    Model(
         "endpoints.toml",
         Path("contract") / "endpoints.schema.json",
         "potka_core.endpoints:Endpoints",
         "ac0b3647ad8580da6e68a49e63a3291b5a78450e14e8599d5ced092c4c181275",
+    ),
+    Model(
+        "a golden image's entry in the fingerprint",
+        Path("contract") / "records" / "fingerprint.schema.json",
+        "potka_core.images:GoldenEntry",
+        "99794f02b5ce8a0e1258adf3a031e0c77de9a7ca3e719b23e8ccbfbd4027975b",
+        part="golden_image",
     ),
 )
 WORKFLOW = Path(".github") / "workflows" / "ci.yml"
@@ -184,47 +217,47 @@ def _drift(
     return drift
 
 
-def model_check(
-    infra: Path, name: str, schema: Path, target: str, digest: str
-) -> tuple[list[str], list[str]]:
-    """Compare potka-core's model of NAME with its schema in the checkout.
+def model_check(infra: Path, model: Model) -> tuple[list[str], list[str]]:
+    """Compare one of potka-core's models with its schema in the checkout.
 
     Args:
         infra: The pokus-infrastructure checkout.
-        name: The file the model reads.
-        schema: The file's schema, relative to the checkout.
-        target: The model, as ``module:class``.
-        digest: The sha256 of the schema the model was written for.
+        model: The model and the schema it was written for.
 
     Returns:
         The findings, and the lines to print when there is none.
     """
+    name, schema = model.name, model.schema
     try:
         raw = (infra / schema).read_bytes()
         contract_schema = json.loads(raw)
     except (OSError, ValueError) as exc:
         return [f"{schema.as_posix()} cannot be read: {exc}"], []
-    module, _, attribute = target.partition(":")
+    module, _, attribute = model.target.partition(":")
     try:
-        model = getattr(importlib.import_module(module), attribute)
+        ours = getattr(importlib.import_module(module), attribute)
     except (ImportError, AttributeError) as exc:
-        return [f"potka-core's model of {name} ({target}) cannot be imported: {exc}"], []
-    drift = schema_drift(contract_schema, model.model_json_schema(by_alias=True))
-    findings = [
-        f"potka-core's model of {name} differs from {schema.as_posix()}: {d}" for d in drift
-    ]
+        return [f"potka-core's model of {name} ({model.target}) cannot be imported: {exc}"], []
+    theirs = contract_schema
+    if model.part is not None:
+        defs = contract_schema.get("$defs") if isinstance(contract_schema, dict) else None
+        if not isinstance(defs, dict) or not isinstance(defs.get(model.part), dict):
+            return [f"{schema.as_posix()} has no definition {model.part}"], []
+        theirs = {**defs[model.part], "$defs": defs}
+    drift = schema_drift(theirs, ours.model_json_schema(by_alias=True))
+    findings = [f"potka-core's model of {name} differs from {model.place}: {d}" for d in drift]
     actual = hashlib.sha256(raw).hexdigest()
-    if actual != digest:
+    if actual != model.digest:
         findings.append(
             f"{schema.as_posix()} is not the schema potka-core's model of {name} was written for"
-            f" (sha256 {actual}, expected {digest}): check the model against it,"
+            f" (sha256 {actual}, expected {model.digest}): check the model against it,"
             " then update the expected sha256"
         )
     if findings:
         return findings, []
     return [], [
-        f"potka-core's model of {name} has the fields of {schema.as_posix()},"
-        f" the schema it was written for (sha256 {digest[:12]})"
+        f"potka-core's model of {name} has the fields of {model.place},"
+        f" the schema it was written for (sha256 {model.digest[:12]})"
     ]
 
 
@@ -311,8 +344,8 @@ def run(root: Path, infra: Path | None) -> Outcome:
         else:
             lines.append("the validator accepts the release:")
             lines += [f"  {line}" for line in done.stdout.splitlines()]
-    for name, schema, target, digest in MODELS:
-        found, shown = model_check(infra, name, schema, target, digest)
+    for model in MODELS:
+        found, shown = model_check(infra, model)
         findings += found
         lines += shown
     found, shown = database_image(root, infra)

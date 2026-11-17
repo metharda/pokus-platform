@@ -1,0 +1,387 @@
+{
+  "$defs": {
+    "Budgets": {
+      "additionalProperties": false,
+      "description": "The agent's budgets a scenario replaces; the others stay the agent configuration's.",
+      "properties": {
+        "max_steps": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most steps of the agent.",
+          "title": "Max Steps"
+        },
+        "max_tokens_total": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most tokens, input and output together.",
+          "title": "Max Tokens Total"
+        },
+        "max_tool_calls": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most tool calls.",
+          "title": "Max Tool Calls"
+        },
+        "max_wall_s": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The longest session, in seconds.",
+          "title": "Max Wall S"
+        }
+      },
+      "title": "Budgets",
+      "type": "object"
+    },
+    "Choice": {
+      "additionalProperties": false,
+      "description": "One of the listed values, each as likely as the others.",
+      "properties": {
+        "type": {
+          "const": "choice",
+          "description": "The kind of parameter.",
+          "title": "Type",
+          "type": "string"
+        },
+        "values": {
+          "description": "The values to choose from: strings, numbers or booleans, none of them twice.\n\nTwo numbers of one value, such as 1 and 1.0, are one value.",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "values"
+      ],
+      "title": "Choice",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Probe": {
+      "additionalProperties": false,
+      "description": "A probe to run, with its parameters.",
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "Its parameters; their strings may use the scenario's parameters as ${name}.",
+          "title": "Params",
+          "type": "object"
+        },
+        "probe": {
+          "description": "The probe's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Probe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "params",
+        "probe"
+      ],
+      "title": "Probe",
+      "type": "object"
+    },
+    "Range": {
+      "additionalProperties": false,
+      "description": "An integer from ``min`` to ``max``, ``step`` apart, each as likely as the others.",
+      "properties": {
+        "max": {
+          "description": "The largest value, a whole number of steps above the smallest.",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "title": "Max",
+          "type": "integer"
+        },
+        "min": {
+          "description": "The smallest value.",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "title": "Min",
+          "type": "integer"
+        },
+        "step": {
+          "default": 1,
+          "description": "The distance between two neighbouring values.",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Step",
+          "type": "integer"
+        },
+        "type": {
+          "const": "range",
+          "description": "The kind of parameter.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "min",
+        "max"
+      ],
+      "title": "Range",
+      "type": "object"
+    },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "Step": {
+      "additionalProperties": false,
+      "description": "A fault primitive to apply, with its parameters.",
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "Its parameters; their strings may use the scenario's parameters as ${name}.",
+          "title": "Params",
+          "type": "object"
+        },
+        "primitive": {
+          "description": "The fault primitive's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+          "title": "Primitive",
+          "type": "string"
+        }
+      },
+      "required": [
+        "params",
+        "primitive"
+      ],
+      "title": "Step",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One version of a scenario template (scenario.yaml).",
+  "properties": {
+    "blueprint": {
+      "description": "The name of the blueprint description the scenario runs on.",
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Blueprint",
+      "type": "string"
+    },
+    "budgets_override": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Budgets"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The agent's budgets this scenario replaces, if any."
+    },
+    "confirm": {
+      "description": "Probes that pass once the fault shows.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Confirm",
+      "type": "array"
+    },
+    "confirm_timeout_seconds": {
+      "description": "How long the confirm probes have to pass: the confirming phase's timeout.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Confirm Timeout Seconds",
+      "type": "integer"
+    },
+    "id": {
+      "description": "The scenario's ID, the same in every version: the template's identity.",
+      "pattern": "^(FIXTURE-)?[A-Z][A-Z0-9]*-[0-9]{3}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "inject": {
+      "description": "The fault primitives, in the order they are applied.",
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "title": "Inject",
+      "type": "array"
+    },
+    "isolation": {
+      "description": "The kind of instance every node of the scenario's blueprint runs in.",
+      "enum": [
+        "container",
+        "vm"
+      ],
+      "title": "Isolation",
+      "type": "string"
+    },
+    "parameters": {
+      "description": "The parameters by name; each instance derives their values from its seed.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Choice"
+            },
+            {
+              "$ref": "#/$defs/Range"
+            }
+          ]
+        }
+      },
+      "propertyNames": {
+        "maxLength": 63
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "preconditions": {
+      "description": "Probes that must pass before the fault.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Preconditions",
+      "type": "array"
+    },
+    "risk_level": {
+      "description": "The scenario's risk level.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Risk Level",
+      "type": "string"
+    },
+    "settle_seconds": {
+      "description": "How long to wait after the fault is confirmed, for its symptoms to spread.",
+      "maximum": 3600,
+      "minimum": 0,
+      "title": "Settle Seconds",
+      "type": "integer"
+    },
+    "setup": {
+      "description": "Steps that prepare the target before the fault.",
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "title": "Setup",
+      "type": "array"
+    },
+    "split": {
+      "description": "The split the scenario belongs to, the same in every version.",
+      "enum": [
+        "train",
+        "dev",
+        "test"
+      ],
+      "title": "Split",
+      "type": "string"
+    },
+    "tags": {
+      "description": "Tags a campaign can select by, none of them twice.",
+      "items": {
+        "maxLength": 63,
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "ticket": {
+      "description": "The ticket the model is shown; it may use the parameters as ${name}.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Ticket",
+      "type": "string"
+    },
+    "title": {
+      "description": "What the scenario is, for people; no model sees it.",
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "description": "This version of the scenario.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "title",
+    "risk_level",
+    "isolation",
+    "blueprint",
+    "split",
+    "tags",
+    "parameters",
+    "preconditions",
+    "setup",
+    "inject",
+    "confirm",
+    "confirm_timeout_seconds",
+    "settle_seconds",
+    "ticket"
+  ],
+  "title": "Scenario",
+  "type": "object"
+}

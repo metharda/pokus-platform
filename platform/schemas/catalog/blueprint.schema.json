@@ -1,0 +1,358 @@
+{
+  "$defs": {
+    "Component": {
+      "additionalProperties": false,
+      "description": "A background component: a job of the application that runs in every run.",
+      "properties": {
+        "name": {
+          "description": "The component's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "settings": {
+          "description": "The settings a fault may change, each with its normal value.",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[A-Za-z_][A-Za-z0-9_.-]*$": {
+              "$ref": "#/$defs/Scalar"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 63
+          },
+          "title": "Settings",
+          "type": "object"
+        },
+        "settings_file": {
+          "description": "The file its settings are in, which the component reads at every start.",
+          "pattern": "^(/[^/]+)+$",
+          "title": "Settings File",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "settings_file",
+        "settings"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Derived": {
+      "additionalProperties": false,
+      "description": "A derived image: the platform builds it on the node's golden image from an overlay.",
+      "properties": {
+        "name": {
+          "description": "Its name; the overlay is the directory blueprints/<name>/overlay/.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "description": "Its version; a changed overlay is a new version.",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "Derived",
+      "type": "object"
+    },
+    "Endpoint": {
+      "additionalProperties": false,
+      "description": "An endpoint of a node that probes reach from the probe client.",
+      "properties": {
+        "name": {
+          "description": "The endpoint's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "pattern": "^/[!-~]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The path of an http or https endpoint; null for tcp.",
+          "title": "Path"
+        },
+        "port": {
+          "description": "Its TCP port.",
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        },
+        "scheme": {
+          "description": "How the endpoint is spoken to.",
+          "enum": [
+            "http",
+            "https",
+            "tcp"
+          ],
+          "title": "Scheme",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "scheme",
+        "port",
+        "path"
+      ],
+      "title": "Endpoint",
+      "type": "object"
+    },
+    "Golden": {
+      "additionalProperties": false,
+      "description": "A golden image, by the infrastructure's blueprint and its version.",
+      "properties": {
+        "blueprint": {
+          "description": "The infrastructure's blueprint.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Blueprint",
+          "type": "string"
+        },
+        "version": {
+          "description": "The blueprint's version.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "blueprint",
+        "version"
+      ],
+      "title": "Golden",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Node": {
+      "additionalProperties": false,
+      "description": "One node of the system.",
+      "properties": {
+        "alias": {
+          "description": "The node's neutral alias: the only name of the node a model sees.",
+          "pattern": "^[a-z][a-z0-9]{0,14}$",
+          "title": "Alias",
+          "type": "string"
+        },
+        "allowed_read_paths": {
+          "description": "The files, and the directories with everything below them, a tool may read.",
+          "items": {
+            "pattern": "^(/[^/]+)+$",
+            "type": "string"
+          },
+          "title": "Allowed Read Paths",
+          "type": "array"
+        },
+        "components": {
+          "description": "The background components; they come with the derived image.",
+          "items": {
+            "$ref": "#/$defs/Component"
+          },
+          "title": "Components",
+          "type": "array"
+        },
+        "derived": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Derived"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The derived image the node is launched from, if it needs one."
+        },
+        "endpoints": {
+          "description": "The endpoints probes reach.",
+          "items": {
+            "$ref": "#/$defs/Endpoint"
+          },
+          "title": "Endpoints",
+          "type": "array"
+        },
+        "golden": {
+          "$ref": "#/$defs/Golden",
+          "description": "The golden image the node, or its derived image, is built on."
+        },
+        "patchable_paths": {
+          "description": "The paths a tool may patch, all of them readable.",
+          "items": {
+            "$ref": "#/$defs/Patchable"
+          },
+          "title": "Patchable Paths",
+          "type": "array"
+        },
+        "services": {
+          "description": "The systemd services of the application, which tools may act on.",
+          "items": {
+            "maxLength": 255,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          },
+          "title": "Services",
+          "type": "array"
+        }
+      },
+      "required": [
+        "alias",
+        "golden",
+        "services",
+        "components",
+        "allowed_read_paths",
+        "patchable_paths",
+        "endpoints"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "Patchable": {
+      "additionalProperties": false,
+      "description": "A path a tool may patch, and the command that checks the result.",
+      "properties": {
+        "path": {
+          "description": "A file, or a directory for every file below it.",
+          "pattern": "^(/[^/]+)+$",
+          "title": "Path",
+          "type": "string"
+        },
+        "validator": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The command and its arguments, run after a patch; null for no check.",
+          "title": "Validator"
+        }
+      },
+      "required": [
+        "path",
+        "validator"
+      ],
+      "title": "Patchable",
+      "type": "object"
+    },
+    "Probe": {
+      "additionalProperties": false,
+      "description": "A probe to run, with its parameters.",
+      "properties": {
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "Its parameters; their strings may use the scenario's parameters as ${name}.",
+          "title": "Params",
+          "type": "object"
+        },
+        "probe": {
+          "description": "The probe's name.",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Probe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "params",
+        "probe"
+      ],
+      "title": "Probe",
+      "type": "object"
+    },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A blueprint description (blueprints/<name>.yaml).",
+  "properties": {
+    "health": {
+      "description": "Probes that pass while the system is healthy; they use no scenario parameter.",
+      "items": {
+        "$ref": "#/$defs/Probe"
+      },
+      "title": "Health",
+      "type": "array"
+    },
+    "name": {
+      "description": "The description's name, which scenarios refer to; the file is <name>.yaml.",
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "nodes": {
+      "description": "The nodes of the system.",
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "minItems": 1,
+      "title": "Nodes",
+      "type": "array"
+    },
+    "probe_client": {
+      "$ref": "#/$defs/Golden",
+      "description": "The golden image of the probe client, which every run gets and which is no node."
+    },
+    "version": {
+      "description": "The description's version.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "probe_client",
+    "nodes",
+    "health"
+  ],
+  "title": "Blueprint",
+  "type": "object"
+}

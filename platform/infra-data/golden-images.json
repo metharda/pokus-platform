@@ -1,0 +1,214 @@
+{
+  "blueprints": {
+    "base": {
+      "base": {
+        "image": "ubuntu-24.04"
+      },
+      "effective_packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "procps",
+        "psmisc",
+        "python3",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": false,
+      "packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "procps",
+        "psmisc",
+        "python3",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    },
+    "docker-host": {
+      "base": {
+        "blueprint": "base"
+      },
+      "effective_packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "docker.io",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "procps",
+        "psmisc",
+        "python3",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": true,
+      "packages": [
+        "docker.io"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    },
+    "pg-primary": {
+      "base": {
+        "blueprint": "base"
+      },
+      "effective_packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "postgresql",
+        "procps",
+        "psmisc",
+        "python3",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": false,
+      "packages": [
+        "postgresql"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    },
+    "probe-client": {
+      "base": {
+        "blueprint": "base"
+      },
+      "effective_packages": [
+        "apache2-utils",
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "postgresql-client",
+        "procps",
+        "psmisc",
+        "python3",
+        "redis-tools",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": false,
+      "packages": [
+        "apache2-utils",
+        "postgresql-client",
+        "redis-tools"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    },
+    "redis-cache": {
+      "base": {
+        "blueprint": "base"
+      },
+      "effective_packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "procps",
+        "psmisc",
+        "python3",
+        "redis-server",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": false,
+      "packages": [
+        "redis-server"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    },
+    "web-nginx-flask": {
+      "base": {
+        "blueprint": "base"
+      },
+      "effective_packages": [
+        "ca-certificates",
+        "curl",
+        "dnsutils",
+        "gunicorn",
+        "htop",
+        "iproute2",
+        "iputils-ping",
+        "jq",
+        "less",
+        "lsof",
+        "netcat-openbsd",
+        "nginx",
+        "procps",
+        "psmisc",
+        "python3",
+        "python3-flask",
+        "strace",
+        "sysstat",
+        "tcpdump",
+        "vim-tiny"
+      ],
+      "nesting": false,
+      "packages": [
+        "nginx",
+        "gunicorn",
+        "python3-flask"
+      ],
+      "type": "container",
+      "version": "1.0.1"
+    }
+  },
+  "infra_pin": "aba3fc90c2007dd6e4d62f9f674bcef15769a913"
+}

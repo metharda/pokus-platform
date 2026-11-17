@@ -1,0 +1,6 @@
+[Unit]
+Description=Build the reports of the last minute
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/report-builder /etc/fixture-app/report-builder.conf

@@ -1,0 +1,9 @@
+[Unit]
+Description=Build the reports every minute
+
+[Timer]
+OnCalendar=minutely
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

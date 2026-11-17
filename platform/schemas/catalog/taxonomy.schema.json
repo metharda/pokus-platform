@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "LabelEntry": {
+      "additionalProperties": false,
+      "description": "A label and what it means.",
+      "properties": {
+        "description": {
+          "description": "What the label means.",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Description",
+          "type": "string"
+        },
+        "name": {
+          "description": "The label: lowercase words joined by dots, the broadest first.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "title": "LabelEntry",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The labels a diagnosis may carry (taxonomy.yaml).",
+  "properties": {
+    "labels": {
+      "description": "The labels, none and unknown among them, none of them twice.",
+      "items": {
+        "$ref": "#/$defs/LabelEntry"
+      },
+      "title": "Labels",
+      "type": "array"
+    },
+    "version": {
+      "description": "The taxonomy's version.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "labels"
+  ],
+  "title": "Taxonomy",
+  "type": "object"
+}

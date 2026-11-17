@@ -1,0 +1,28 @@
+#!/usr/bin/python3
+"""Build the reports of the last minute: a small, fixed amount of work at every start."""
+
+import hashlib
+import sys
+
+
+def settings(path):
+    """The settings of the file PATH: one name=value per line, # starts a comment."""
+    found = {}
+    with open(path, encoding="utf-8") as source:
+        for line in source:
+            line = line.split("#", 1)[0].strip()
+            if line:
+                name, _, value = line.partition("=")
+                found[name.strip()] = int(value)
+    return found
+
+
+def main():
+    wanted = settings(sys.argv[1])
+    digest = hashlib.sha256()
+    for batch in range(wanted["workers"] * wanted["batch_size"]):
+        digest.update(str(batch).encode())
+    print("reports built:", wanted["workers"] * wanted["batch_size"], digest.hexdigest()[:8])
+
+
+main()

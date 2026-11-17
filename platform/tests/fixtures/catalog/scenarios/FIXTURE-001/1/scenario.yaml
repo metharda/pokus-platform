@@ -1,0 +1,34 @@
+# A synthetic scenario, written for the platform's tests: a configuration error.
+id: FIXTURE-001
+version: 1
+title: The web server cannot parse its configuration
+risk_level: low
+isolation: container
+blueprint: fixture-web
+split: dev
+tags: [web, configuration]
+parameters:
+  defect:
+    type: choice
+    values: [missing_semicolon, unclosed_block, unknown_directive]
+  section:
+    type: choice
+    values: [shop, blog, help]
+preconditions: []
+setup: []
+inject:
+  - primitive: nginx.corrupt_conf
+    params: {node: web, path: /etc/nginx/nginx.conf, defect: "${defect}"}
+  - primitive: systemd.action
+    params: {node: web, unit: nginx.service, action: restart}
+confirm:
+  - probe: nginx_config_valid
+    params: {node: web, valid: false}
+  - probe: unit_state
+    params: {node: web, unit: nginx.service, state: failed}
+confirm_timeout_seconds: 30
+settle_seconds: 5
+ticket: |
+  Since a change went out a few minutes ago, people say the ${section} pages
+  of the site do not load any more. Please find out what is wrong and, if you
+  can, put it right.

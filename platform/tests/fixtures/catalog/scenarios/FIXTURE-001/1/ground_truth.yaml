@@ -1,0 +1,27 @@
+fault:
+  category: config.syntax_error
+  component: the web server
+  location: /etc/nginx/nginx.conf
+diagnosis:
+  accepted_labels: [config.syntax_error]
+actions:
+  acceptable:
+    - tool: apply_config_patch
+      args: {node: web, path: /etc/nginx/nginx.conf}
+  then_required:
+    - tool: start_service
+      args: {node: web, unit: nginx.service}
+  harmful:
+    - tool: stop_service
+      args: {node: web, unit: webapp.service}
+verification:
+  - probe: nginx_config_valid
+    params: {node: web, valid: true}
+  - probe: unit_state
+    params: {node: web, unit: nginx.service, state: active}
+  - probe: http_get
+    params: {node: web, endpoint: site, status: 200}
+collateral:
+  - probe: integrity
+    params: {node: web, paths: [/etc/fixture-app]}
+resolution_state: The configuration parses again, the web server runs and the site answers.
