@@ -11,6 +11,7 @@ from golden import infra, platform
 
 from potka_ci import __main__ as cli
 from potka_ci import generated
+from potka_ci.outcome import Outcome
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMES = [
@@ -178,6 +179,8 @@ def test_the_command_line_checks_and_writes(
 ) -> None:
     root, repo = checkout
     monkeypatch.setattr(cli, "ROOT", root)
+    # The extract's own check is not this test's: here it finds nothing and says nothing.
+    monkeypatch.setattr(generated, "extract", lambda root, incus=None: Outcome("passed"))
     assert cli.main(["generated"]) == 2
     out, err = capsys.readouterr()
     assert out.startswith("4 generated file(s) match a fresh generation; ")
@@ -221,7 +224,7 @@ def test_the_make_targets_refuse_to_run_without_the_checkout(
     check = f"CHECK={sys.executable} {script} {record}"
     # A make that runs these tests (make test INFRA=..., the gate) hands its own INFRA
     # down through the environment: the make started here must not inherit it.
-    inherited = ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "MAKELEVEL", "INFRA")
+    inherited = ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "MAKELEVEL", "INFRA", "INCUS")
     environ = {name: value for name, value in os.environ.items() if name not in inherited}
     done = subprocess.run([*make, check], env=environ, capture_output=True, text=True, check=False)
     assert done.returncode == 2

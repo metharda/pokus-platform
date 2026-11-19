@@ -1,6 +1,8 @@
 # The Pokus Platform's development targets; CI calls the same ones.
 # INFRA names a checkout of pokus-infrastructure at the commit of INFRA_PIN
 # (the contract, build and generated checks and make golden-images need it).
+# INCUS names a directory with the two files of Incus's repository that the
+# Incus API extract is made from (make incus-sources fetches them).
 # CATALOG names a checkout of a catalog, which the catalog-* targets lint and
 # check by this repository's rules; a relative path is taken from this
 # directory. ROOT_COMMIT is that repository's root commit: its author is the
@@ -22,6 +24,7 @@ MAKEFLAGS += --no-builtin-rules
 
 UV ?= uv
 INFRA ?=
+INCUS ?=
 CATALOG ?=
 ROOT_COMMIT ?=
 VERBOSE ?=
@@ -41,6 +44,7 @@ RUN := $(UV) run --locked --all-packages --group contract
 CHECK := PYTHONPATH=$(abspath ../ci) $(RUN) python -m potka_ci
 CODE := packages tests ../ci
 NEED_INFRA = @test -n "$(INFRA)" || { echo "$@: INFRA=<path of the pokus-infrastructure checkout at INFRA_PIN>"; exit 2; }
+NEED_INCUS = @test -n "$(INCUS)" || { echo "$@: INCUS=<path of the directory of the two files of Incus's repository>"; exit 2; }
 NEED_CATALOG = @test -n "$(CATALOG)" || { echo "$@: CATALOG=<path of the catalog checkout>"; exit 2; }
 # $(call OWN_CHECK,<check>): a check of this repository, or the refusal when a
 # catalog is given. One recipe line, so that nothing runs after a refusal
@@ -77,6 +81,10 @@ lint: ## ruff, ruff format, mypy (strict) and actionlint (with ShellCheck)
 test: ## The tests of the packages and of the repository checks (INFRA=<path> for the database tests)
 	$(if $(INFRA),POTKA_INFRA="$(abspath $(INFRA))") $(RUN) pytest -q -p no:cacheprovider
 
+.PHONY: e2e-real
+e2e-real: ## The checks against a real Incus on a lab host (tests/e2e_real; never in the gate or CI)
+	$(RUN) pytest -q -s -p no:cacheprovider tests/e2e_real/incus_real.py
+
 .PHONY: schemas
 schemas: ## Write the JSON Schemas of the catalog's files (schemas/catalog/) from their models
 	$(CHECK) generated --write schemas
@@ -86,10 +94,20 @@ golden-images: ## Write infra-data/golden-images.json from pokus-infrastructure'
 	$(NEED_INFRA)
 	$(CHECK) generated --write golden-images --infra "$(INFRA)"
 
+.PHONY: incus-sources
+incus-sources: ## Fetch the two files of Incus's repository that the Incus API extract is made from (INCUS=<path>)
+	$(NEED_INCUS)
+	$(CHECK) incus-sources "$(INCUS)"
+
+.PHONY: incus-api
+incus-api: ## Write tests/fixtures/incus-api/api.json from those two files (INCUS=<path>)
+	$(NEED_INCUS)
+	$(CHECK) generated --write incus-api --incus "$(INCUS)"
+
 .PHONY: generated
-generated: ## The committed generated files match a fresh generation (INFRA=<path>)
+generated: ## The committed generated files match a fresh generation (INFRA=<path>; with INCUS=<path> the Incus API extract too)
 	$(NEED_INFRA)
-	$(CHECK) generated --infra "$(INFRA)"
+	$(CHECK) generated --infra "$(INFRA)" $(if $(INCUS),--incus "$(INCUS)")
 
 .PHONY: contract
 contract: ## The release against pokus-infrastructure's contract at INFRA_PIN (INFRA=<path>)
@@ -139,5 +157,5 @@ verify-todos: ## List the open verification markers; fails while any remain (the
 	$(CHECK) verify-todos
 
 .PHONY: gate
-gate: ## Every check once, with one summary line (INFRA=<path>, VERBOSE=1)
-	@$(CHECK) gate $(if $(INFRA),--infra "$(INFRA)") --uv "$(UV)" --python "$(BUILD_PYTHON)" $(if $(VERBOSE),--verbose)
+gate: ## Every check once, with one summary line (INFRA=<path>, INCUS=<path>, VERBOSE=1)
+	@$(CHECK) gate $(if $(INFRA),--infra "$(INFRA)") $(if $(INCUS),--incus "$(INCUS)") --uv "$(UV)" --python "$(BUILD_PYTHON)" $(if $(VERBOSE),--verbose)
