@@ -1,0 +1,14 @@
+[project]
+name = "potka-incus"
+version = "0.0.0"
+description = "The Pokus Platform's client of the Incus API, with an in-memory Incus for tests."
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "httpx==0.28.1",
+  "potka-core",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13"]
+build-backend = "uv_build"

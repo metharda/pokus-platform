@@ -15,6 +15,7 @@ members = [
     "potka-evaluator",
     "potka-executor",
     "potka-gateway",
+    "potka-incus",
     "potka-injector",
     "potka-orchestrator",
     "potka-verifier",
@@ -702,6 +703,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "potka-core", editable = "packages/potka-core" }]
+
+[[package]]
+name = "potka-incus"
+version = "0.0.0"
+source = { editable = "packages/potka-incus" }
+dependencies = [
+    { name = "httpx" },
+    { name = "potka-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "potka-core", editable = "packages/potka-core" },
+]
 
 [[package]]
 name = "potka-injector"
