@@ -405,15 +405,18 @@ CATALOG_TARGETS = [
 ]
 
 
-def make(tmp_path: Path, target: str, *variables: str) -> tuple[int, str, object]:
+def make(
+    tmp_path: Path, target: str, *variables: str, environ: dict[str, str] | None = None
+) -> tuple[int, str, object]:
     """Run a make target with the tools replaced by a recorder: status, output, the record."""
+    tmp_path.mkdir(exist_ok=True)
     script = tmp_path / "record.py"
     script.write_text(RECORDER, encoding="utf-8")
     record = tmp_path / "record.json"
     tool = f"{sys.executable} {script} {record}"
     done = subprocess.run(
         ["make", "-s", "-C", str(PLATFORM), target, f"CHECK={tool}", f"RUN={tool}", *variables],
-        env={"PATH": "/usr/bin:/bin"},
+        env={"PATH": "/usr/bin:/bin", **(environ or {})},
         capture_output=True,
         text=True,
         check=False,
@@ -452,3 +455,71 @@ def test_the_catalog_s_commit_check_needs_its_root_commit(tmp_path: Path) -> Non
         "catalog-commits: ROOT_COMMIT=<the root commit of the catalog's repository>"
     )
     assert recorded is None
+
+
+OWN_TARGETS = ["privacy", "references", "commits"]
+
+
+@pytest.mark.parametrize("target", OWN_TARGETS)
+def test_a_target_of_this_repository_runs_its_check_without_a_catalog(
+    tmp_path: Path, target: str
+) -> None:
+    ran = (0, "", {"argv": [target], "ref": None})
+    assert make(tmp_path / "plain", target) == ran
+    # A variable given as empty is not given, on the command line or in the environment.
+    assert make(tmp_path / "empty", target, "CATALOG=", "ROOT_COMMIT=") == ran
+    assert make(tmp_path / "env", target, environ={"CATALOG": "", "ROOT_COMMIT": ""}) == ran
+
+
+@pytest.mark.parametrize("target", OWN_TARGETS)
+@pytest.mark.parametrize(
+    "variables",
+    [
+        ["CATALOG=../../a-catalog"],
+        [f"ROOT_COMMIT={'3' * 40}"],
+        ["CATALOG=../../a-catalog", f"ROOT_COMMIT={'3' * 40}"],
+    ],
+)
+def test_a_target_of_this_repository_takes_no_catalog(
+    tmp_path: Path, target: str, variables: list[str]
+) -> None:
+    status, output, recorded = make(tmp_path, target, *variables)
+    assert status == 2
+    assert output.splitlines()[0] == (
+        f"{target}: checks this repository and takes no CATALOG or ROOT_COMMIT;"
+        f" catalog-{target} checks a catalog"
+    )
+    assert recorded is None
+
+
+@pytest.mark.parametrize("target", OWN_TARGETS)
+@pytest.mark.parametrize("variable", ["CATALOG", "ROOT_COMMIT"])
+def test_a_catalog_in_the_environment_is_refused_too(
+    tmp_path: Path, target: str, variable: str
+) -> None:
+    status, output, recorded = make(tmp_path, target, environ={variable: "../../a-catalog"})
+    assert status == 2
+    assert output.splitlines()[0].startswith(f"{target}: checks this repository and takes no ")
+    assert recorded is None
+
+
+@pytest.mark.parametrize("target", OWN_TARGETS)
+def test_nothing_runs_after_the_refusal_when_make_ignores_errors(
+    tmp_path: Path, target: str
+) -> None:
+    status, output, recorded = make(tmp_path, target, "CATALOG=../../a-catalog", "-i")
+    assert status == 0
+    assert output.splitlines()[0].startswith(f"{target}: checks this repository and takes no ")
+    assert recorded is None
+
+
+@pytest.mark.parametrize("target", OWN_TARGETS)
+def test_a_catalog_given_to_a_target_of_this_repository_is_never_run(
+    tmp_path: Path, target: str
+) -> None:
+    # make tests the variable itself: its value is not written into the recipe.
+    marker = tmp_path / "ran"
+    status, _, recorded = make(tmp_path, target, f'CATALOG="; touch {marker}; "')
+    assert status == 2
+    assert recorded is None
+    assert not marker.exists()

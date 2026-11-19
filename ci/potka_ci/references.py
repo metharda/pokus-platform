@@ -5,7 +5,8 @@ decision of the people building the platform, and no assistant's settings
 or rules file is in the repository. The patterns are in
 ``ci/references.json``; each name there is split by an empty group, so the
 file does not match its own patterns and is checked like any other. Every
-commit message reachable from ``HEAD`` is checked.
+commit message reachable from ``HEAD`` is checked. A shallow checkout fails
+the check: the messages it lacks cannot be read.
 """
 
 from __future__ import annotations
@@ -91,6 +92,8 @@ def run(root: Path, rules: Rules | None = None) -> Outcome:
     Returns:
         The outcome.
     """
+    if git(root, ["rev-parse", "--is-shallow-repository"]).strip() != "false":
+        return Outcome("failed", ["a shallow checkout: fetch the whole history"])
     rules = rules or load()
     findings: list[str] = []
     warnings: list[str] = []

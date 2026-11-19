@@ -5,7 +5,9 @@
 # check by this repository's rules; a relative path is taken from this
 # directory. ROOT_COMMIT is that repository's root commit: its author is the
 # author and, a merge made on github.com aside, the committer that every
-# commit of the catalog must have.
+# commit of the catalog must have. privacy, references and commits check
+# this repository only: given either variable they refuse to run, so that a
+# catalog- target written without its prefix cannot pass in a catalog's place.
 #
 # The file BUILD_PYTHON at the repository's root holds the one Python
 # version of the development environment, the build check, the gate and CI.
@@ -40,6 +42,11 @@ CHECK := PYTHONPATH=$(abspath ../ci) $(RUN) python -m potka_ci
 CODE := packages tests ../ci
 NEED_INFRA = @test -n "$(INFRA)" || { echo "$@: INFRA=<path of the pokus-infrastructure checkout at INFRA_PIN>"; exit 2; }
 NEED_CATALOG = @test -n "$(CATALOG)" || { echo "$@: CATALOG=<path of the catalog checkout>"; exit 2; }
+# $(call OWN_CHECK,<check>): a check of this repository, or the refusal when a
+# catalog is given. One recipe line, so that nothing runs after a refusal
+# (make -i included); make only tests the variables and never writes them
+# into the recipe.
+OWN_CHECK = $(if $(CATALOG)$(ROOT_COMMIT),@echo "$@: checks this repository and takes no CATALOG or ROOT_COMMIT; catalog-$@ checks a catalog"; exit 2,$(CHECK) $(1))
 
 .PHONY: help
 help: ## List the targets
@@ -96,15 +103,15 @@ build: ## pokus-infrastructure's build of the release, and the built release (IN
 
 .PHONY: privacy
 privacy: ## No personal or installation-specific data (denylist: POTKA_PRIVACY_DENYLIST)
-	$(CHECK) privacy
+	$(call OWN_CHECK,privacy)
 
 .PHONY: references
 references: ## No reference outside the product's own terms
-	$(CHECK) references
+	$(call OWN_CHECK,references)
 
 .PHONY: commits
 commits: ## Every commit of the range is the maintainer's
-	$(CHECK) commits
+	$(call OWN_CHECK,commits)
 
 .PHONY: catalog-lint
 catalog-lint: ## potka catalog lint on a catalog checkout (CATALOG=<path>)
