@@ -1,0 +1,1857 @@
+{
+  "calls": {
+    "DELETE /1.0/instances/{name}": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "202": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Operation"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "DELETE /1.0/instances/{name}/files": {
+      "body": null,
+      "headers": [
+        "X-Incus-force"
+      ],
+      "query": [
+        "path",
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "404": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "DELETE /1.0/instances/{name}/logs/exec-output/{filename}": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "404": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/instances": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "all-projects",
+        "filter",
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/instances/{name}": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Instance"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/instances/{name}/files": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "path",
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [
+            "X-Incus-gid",
+            "X-Incus-mode",
+            "X-Incus-modified",
+            "X-Incus-type",
+            "X-Incus-uid"
+          ],
+          "schema": null
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "404": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/instances/{name}/logs/exec-output/{filename}": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": null
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "404": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/instances/{name}/state": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/InstanceState"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "GET /1.0/operations/{id}/wait": {
+      "body": null,
+      "headers": [],
+      "query": [
+        "timeout"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Operation"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "POST /1.0/instances": {
+      "body": {
+        "$ref": "#/definitions/InstancesPost"
+      },
+      "headers": [],
+      "query": [
+        "project",
+        "target"
+      ],
+      "responses": {
+        "202": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Operation"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "POST /1.0/instances/{name}/exec": {
+      "body": {
+        "$ref": "#/definitions/InstanceExecPost"
+      },
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "202": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Operation"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "POST /1.0/instances/{name}/files": {
+      "body": "raw",
+      "headers": [
+        "X-Incus-gid",
+        "X-Incus-mode",
+        "X-Incus-type",
+        "X-Incus-uid",
+        "X-Incus-write"
+      ],
+      "query": [
+        "path",
+        "project"
+      ],
+      "responses": {
+        "200": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "404": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    },
+    "PUT /1.0/instances/{name}/state": {
+      "body": {
+        "$ref": "#/definitions/InstanceStatePut"
+      },
+      "headers": [],
+      "query": [
+        "project"
+      ],
+      "responses": {
+        "202": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/definitions/Operation"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "status_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "400": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "403": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "500": {
+          "headers": [],
+          "schema": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "error_code": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "config": {
+    "devices": {
+      "disk": [
+        "attached",
+        "boot.priority",
+        "ceph.cluster_name",
+        "ceph.user_name",
+        "initial.*",
+        "io.bus",
+        "io.cache",
+        "limits.max",
+        "limits.read",
+        "limits.write",
+        "path",
+        "pool",
+        "propagation",
+        "raw.mount.options",
+        "readonly",
+        "recursive",
+        "required",
+        "shift",
+        "size",
+        "size.state",
+        "source",
+        "wwn"
+      ],
+      "nic_bridged": [
+        "attached",
+        "boot.priority",
+        "connected",
+        "host_name",
+        "hwaddr",
+        "io.bus",
+        "ipv4.address",
+        "ipv4.routes",
+        "ipv4.routes.external",
+        "ipv6.address",
+        "ipv6.routes",
+        "ipv6.routes.external",
+        "limits.egress",
+        "limits.ingress",
+        "limits.max",
+        "limits.priority",
+        "mtu",
+        "name",
+        "network",
+        "parent",
+        "queue.tx.length",
+        "security.acls",
+        "security.acls.default.egress.action",
+        "security.acls.default.egress.logged",
+        "security.acls.default.ingress.action",
+        "security.acls.default.ingress.logged",
+        "security.ipv4_filtering",
+        "security.ipv6_filtering",
+        "security.mac_filtering",
+        "security.port_isolation",
+        "vlan",
+        "vlan.tagged"
+      ]
+    },
+    "instance": [
+      "agent.nic_config",
+      "boot.autorestart",
+      "boot.autostart",
+      "boot.autostart.delay",
+      "boot.autostart.priority",
+      "boot.host_shutdown_action",
+      "boot.host_shutdown_timeout",
+      "boot.stop.priority",
+      "cloud-init.network-config",
+      "cloud-init.user-data",
+      "cloud-init.vendor-data",
+      "cluster.evacuate",
+      "environment.*",
+      "limits.cpu",
+      "limits.cpu.allowance",
+      "limits.cpu.nodes",
+      "limits.cpu.priority",
+      "limits.disk.priority",
+      "limits.hugepages.1GB",
+      "limits.hugepages.1MB",
+      "limits.hugepages.2MB",
+      "limits.hugepages.64KB",
+      "limits.memory",
+      "limits.memory.enforce",
+      "limits.memory.hotplug",
+      "limits.memory.hugepages",
+      "limits.memory.oom_priority",
+      "limits.memory.swap",
+      "limits.memory.swap.priority",
+      "limits.processes",
+      "linux.kernel_modules",
+      "linux.sysctl.*",
+      "migration.incremental.memory",
+      "migration.incremental.memory.goal",
+      "migration.incremental.memory.iterations",
+      "migration.stateful",
+      "nvidia.driver.capabilities",
+      "nvidia.require.cuda",
+      "nvidia.require.driver",
+      "nvidia.runtime",
+      "raw.apparmor",
+      "raw.idmap",
+      "raw.lxc",
+      "raw.qemu",
+      "raw.qemu.conf",
+      "raw.qemu.qmp.early",
+      "raw.qemu.qmp.post-start",
+      "raw.qemu.qmp.pre-start",
+      "raw.qemu.scriptlet",
+      "raw.seccomp",
+      "security.agent.metrics",
+      "security.bpffs.delegate_attachs",
+      "security.bpffs.delegate_cmds",
+      "security.bpffs.delegate_maps",
+      "security.bpffs.delegate_progs",
+      "security.bpffs.path",
+      "security.csm",
+      "security.guestapi",
+      "security.guestapi.images",
+      "security.idmap.base",
+      "security.idmap.isolated",
+      "security.idmap.size",
+      "security.iommu",
+      "security.nesting",
+      "security.privileged",
+      "security.protection.delete",
+      "security.protection.shift",
+      "security.secureboot",
+      "security.sev",
+      "security.sev.policy.es",
+      "security.sev.session.data",
+      "security.sev.session.dh",
+      "security.syscalls.allow",
+      "security.syscalls.deny",
+      "security.syscalls.deny_compat",
+      "security.syscalls.deny_default",
+      "security.syscalls.intercept.bpf",
+      "security.syscalls.intercept.bpf.devices",
+      "security.syscalls.intercept.mknod",
+      "security.syscalls.intercept.mount",
+      "security.syscalls.intercept.mount.allowed",
+      "security.syscalls.intercept.mount.fuse",
+      "security.syscalls.intercept.mount.shift",
+      "security.syscalls.intercept.sched_setscheduler",
+      "security.syscalls.intercept.setxattr",
+      "security.syscalls.intercept.sysinfo",
+      "smbios11.*",
+      "snapshots.expiry",
+      "snapshots.expiry.manual",
+      "snapshots.pattern",
+      "snapshots.schedule",
+      "snapshots.schedule.stopped",
+      "systemd.credential-binary.*",
+      "systemd.credential.*",
+      "user.*",
+      "user.network-config",
+      "user.user-data",
+      "user.vendor-data",
+      "volatile.<name>.apply_quota",
+      "volatile.<name>.ceph_rbd",
+      "volatile.<name>.host_name",
+      "volatile.<name>.hwaddr",
+      "volatile.<name>.io.bus",
+      "volatile.<name>.last_state.created",
+      "volatile.<name>.last_state.hwaddr",
+      "volatile.<name>.last_state.ip_addresses",
+      "volatile.<name>.last_state.mtu",
+      "volatile.<name>.last_state.pci.driver",
+      "volatile.<name>.last_state.pci.parent",
+      "volatile.<name>.last_state.pci.slot.name",
+      "volatile.<name>.last_state.usb.bus",
+      "volatile.<name>.last_state.usb.device",
+      "volatile.<name>.last_state.vdpa.name",
+      "volatile.<name>.last_state.vf.hwaddr",
+      "volatile.<name>.last_state.vf.id",
+      "volatile.<name>.last_state.vf.parent",
+      "volatile.<name>.last_state.vf.spoofcheck",
+      "volatile.<name>.last_state.vf.trusted",
+      "volatile.<name>.last_state.vf.vlan",
+      "volatile.<name>.mig.uuid",
+      "volatile.<name>.name",
+      "volatile.<name>.vgpu.uuid",
+      "volatile.apply_nvram",
+      "volatile.apply_template",
+      "volatile.base_image",
+      "volatile.cloud_init.instance-id",
+      "volatile.cluster.group",
+      "volatile.cpu.nodes",
+      "volatile.evacuate.origin",
+      "volatile.idmap.base",
+      "volatile.idmap.current",
+      "volatile.idmap.next",
+      "volatile.last_state.idmap",
+      "volatile.last_state.power",
+      "volatile.last_state.ready",
+      "volatile.rebalance.last_move",
+      "volatile.uuid",
+      "volatile.uuid.generation",
+      "volatile.vm.definition",
+      "volatile.vm.hotplug.memory",
+      "volatile.vm.needs_reset",
+      "volatile.vm.rtc_adjustment",
+      "volatile.vm.rtc_offset",
+      "volatile.vsock_id"
+    ]
+  },
+  "definitions": {
+    "ConfigMap": {
+      "type": "object"
+    },
+    "DevicesMap": {
+      "type": "object"
+    },
+    "Instance": {
+      "properties": {
+        "architecture": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/definitions/ConfigMap"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "devices": {
+          "$ref": "#/definitions/DevicesMap"
+        },
+        "disk_only": {
+          "type": "boolean"
+        },
+        "ephemeral": {
+          "type": "boolean"
+        },
+        "expanded_config": {
+          "$ref": "#/definitions/ConfigMap"
+        },
+        "expanded_devices": {
+          "$ref": "#/definitions/DevicesMap"
+        },
+        "last_used_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "profiles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "project": {
+          "type": "string"
+        },
+        "restore": {
+          "type": "string"
+        },
+        "stateful": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "status_code": {
+          "$ref": "#/definitions/StatusCode"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceExecPost": {
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "environment": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "group": {
+          "format": "uint32",
+          "type": "integer"
+        },
+        "height": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "interactive": {
+          "type": "boolean"
+        },
+        "record-output": {
+          "type": "boolean"
+        },
+        "user": {
+          "format": "uint32",
+          "type": "integer"
+        },
+        "wait-for-websocket": {
+          "type": "boolean"
+        },
+        "width": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceSource": {
+      "properties": {
+        "alias": {
+          "type": "string"
+        },
+        "allow_inconsistent": {
+          "type": "boolean"
+        },
+        "base-image": {
+          "type": "string"
+        },
+        "certificate": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "instance_only": {
+          "type": "boolean"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "properties": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "refresh": {
+          "type": "boolean"
+        },
+        "refresh_exclude_older": {
+          "type": "boolean"
+        },
+        "secret": {
+          "type": "string"
+        },
+        "secrets": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "server": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceState": {
+      "properties": {
+        "cpu": {
+          "$ref": "#/definitions/InstanceStateCPU"
+        },
+        "disk": {
+          "additionalProperties": {
+            "$ref": "#/definitions/InstanceStateDisk"
+          },
+          "type": "object"
+        },
+        "memory": {
+          "$ref": "#/definitions/InstanceStateMemory"
+        },
+        "network": {
+          "additionalProperties": {
+            "$ref": "#/definitions/InstanceStateNetwork"
+          },
+          "type": "object"
+        },
+        "os_info": {
+          "$ref": "#/definitions/InstanceStateOSInfo"
+        },
+        "pid": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "processes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "status_code": {
+          "$ref": "#/definitions/StatusCode"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateCPU": {
+      "properties": {
+        "allocated_time": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "usage": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateDisk": {
+      "properties": {
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "usage": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateMemory": {
+      "properties": {
+        "swap_usage": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "swap_usage_peak": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "total": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "usage": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "usage_peak": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateNetwork": {
+      "properties": {
+        "addresses": {
+          "items": {
+            "$ref": "#/definitions/InstanceStateNetworkAddress"
+          },
+          "type": "array"
+        },
+        "counters": {
+          "$ref": "#/definitions/InstanceStateNetworkCounters"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "hwaddr": {
+          "type": "string"
+        },
+        "mtu": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateNetworkAddress": {
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "family": {
+          "type": "string"
+        },
+        "netmask": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateNetworkCounters": {
+      "properties": {
+        "bytes_received": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "bytes_sent": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "errors_received": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "errors_sent": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "packets_dropped_inbound": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "packets_dropped_outbound": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "packets_received": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "packets_sent": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStateOSInfo": {
+      "properties": {
+        "fqdn": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "kernel_version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "os_version": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceStatePut": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "force": {
+          "type": "boolean"
+        },
+        "stateful": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InstanceType": {
+      "type": "string"
+    },
+    "InstancesPost": {
+      "properties": {
+        "architecture": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/definitions/ConfigMap"
+        },
+        "description": {
+          "type": "string"
+        },
+        "devices": {
+          "$ref": "#/definitions/DevicesMap"
+        },
+        "disk_only": {
+          "type": "boolean"
+        },
+        "ephemeral": {
+          "type": "boolean"
+        },
+        "instance_type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "profiles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "restore": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/InstanceSource"
+        },
+        "start": {
+          "type": "boolean"
+        },
+        "stateful": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/definitions/InstanceType"
+        }
+      },
+      "type": "object"
+    },
+    "Operation": {
+      "properties": {
+        "class": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "err": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "may_cancel": {
+          "type": "boolean"
+        },
+        "metadata": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "resources": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "status": {
+          "type": "string"
+        },
+        "status_code": {
+          "$ref": "#/definitions/StatusCode"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "StatusCode": {
+      "format": "int64",
+      "type": "integer"
+    }
+  },
+  "source": {
+    "commit": "7678ccc46b2d0b8092b2b9419ab6255e3ca98f00",
+    "files": {
+      "doc/rest-api.yaml": "f5648960d865984b9100cc46105e6b7b3f9259c3118683c25ddc61623043151e",
+      "internal/server/metadata/configuration.json": "12f35177d58b63e999fe23033b5f9e39b316473e7ac4a10fefc7e7e6d649bbc9"
+    },
+    "license": "Apache-2.0",
+    "repository": "https://github.com/lxc/incus",
+    "tag": "v6.0.7",
+    "version": "6.0.7"
+  }
+}
