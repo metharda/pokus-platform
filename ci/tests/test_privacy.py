@@ -118,6 +118,70 @@ def test_allowed_values_pass(line: str) -> None:
     assert rules(line) == []
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "systemctl status postgresql@16-main.service",
+        "services: [postgresql.service, postgresql@16-main.service]",
+        "getty@tty1.service, user@1000.service and a_b-c.d@e-f.g.service",
+        "It stops postgresql@16-main.service. Then it starts postgresql@16-main.service.",
+        "/etc/systemd/system/postgresql@16-main.service",
+    ],
+)
+def test_a_service_unit_s_instance_name_is_no_address(line: str) -> None:
+    assert rules(line) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # Another unit type: one of them is a top-level domain.
+        "backup@" + "nightly.timer",
+        "serial-getty@" + "ttys0.socket",
+        "someone@" + "corp.target",
+        "data@" + "disk.mount",
+        # A top-level domain that begins with the same letters, and a longer name.
+        "someone@" + "desk.services",
+        "someone@" + "mail.service.nonexistent-lab-0123.org",
+        "someone@" + "mail.service-desk.nonexistent-lab-0123.org",
+        # The form of a unit's name at a real domain.
+        "postgresql@" + "16-main.nonexistent-lab-0123.org",
+        # Not the spelling of a unit's name.
+        "Someone@" + "host.service",
+        "someone@" + "HOST.SERVICE",
+        "serial-getty@" + "ttyS0.service",
+        "some+one@" + "host.service",
+        "some%one@" + "host.service",
+        "ab@" + "cd.ef@g.service",
+        # A label after the name: a top-level domain that is not of ASCII
+        # letters, a drop-in directory, a directory of links, a template.
+        "info@" + "mail.service.xn--p1ai",
+        "info@" + "mail.service." + chr(0x440) + chr(0x444),
+        "/etc/systemd/system/postgresql@" + "16-main.service.d/override.conf",
+        "/etc/systemd/system/postgresql@" + "16-main.service.wants/a.service",
+        "postgresql@" + "16-main.service.in",
+    ],
+)
+def test_only_a_service_unit_s_instance_name_is_exempt(line: str) -> None:
+    assert rules(line) == ["e-mail address outside the example domains"]
+
+
+def test_the_denylist_reads_a_unit_s_instance_name_too() -> None:
+    line = "postgresql@" + "alpha-host.service"
+    assert rules(line, denylist=("alpha-host",)) == ["a term of the denylist"]
+
+
+def test_a_unit_s_instance_name_passes_in_a_file_a_path_and_a_message(repo: Repo) -> None:
+    unit = "postgresql@16-main.service"
+    repo.write(f"units/{unit}", f"Description=the cluster of {unit}\n")
+    commit_all(repo, f"Add a unit\n\n{unit} is the cluster's own unit.")
+    outcome = privacy.run(repo.path, "main", None, environ={privacy.DENYLIST_ENV: "alpha-host"})
+    assert outcome.status == "passed"
+    assert outcome.lines == [
+        "privacy: 1 file(s) and 2 commit(s) of the whole history of HEAD (branch main) scanned"
+    ]
+
+
 def test_a_four_part_version_elsewhere_is_an_address() -> None:
     assert rules(f"host {FOUR_PART_VERSION}") == [
         "public IPv4 address (use 192.0.2.0/24 and the like)"
