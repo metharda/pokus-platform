@@ -1,4 +1,5 @@
 {
+  "$comment": "In the models that read these files, $ in a pattern matches only at the very end of a value. In a reader that evaluates patterns with Python's re module, as the jsonschema package does, $ also matches before a final line break, so such a reader accepts some values ending in a line break that the models refuse.",
   "$defs": {
     "LabelEntry": {
       "additionalProperties": false,
