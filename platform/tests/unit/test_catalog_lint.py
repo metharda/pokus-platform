@@ -134,7 +134,7 @@ def test_a_file_that_does_not_load_gives_the_loaders_findings_only(catalog: Path
         ("scenarios/notes.txt", "format", "a file, not a directory"),
     ]
     assert yaml_error[:2] == ("taxonomy.yaml", "format")
-    assert yaml_error[2].startswith("not YAML of the catalog's subset: ")
+    assert yaml_error[2].startswith("not YAML of the platform's subset: ")
     assert yaml_error[2].endswith(" (line 3, column 1)")
     assert found(catalog / "missing") == [(".", "format", "missing")]
 

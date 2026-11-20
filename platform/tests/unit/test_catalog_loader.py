@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 import yaml
-from potka_core.catalog.loader import Catalog, CatalogError, load_catalog, parse_yaml
+from potka_core.catalog.loader import Catalog, CatalogError, load_catalog
+from potka_core.yaml_subset import parse_yaml
 from potka_testing.catalog import scenario_data
 from potka_testing.catalog_tree import catalog_files, write_catalog
 
@@ -129,7 +130,7 @@ def test_every_malformed_file_is_named_with_the_place(tmp_path: Path) -> None:
         ),
         (
             "scenarios/FIXTURE-CONTROL-000/1/ground_truth.yaml",
-            "not YAML of the catalog's subset: a syntax error (line 2, column 1)",
+            "not YAML of the platform's subset: a syntax error (line 2, column 1)",
         ),
     ]
     assert "s3cret" not in str(found)
@@ -205,9 +206,9 @@ def test_a_document_of_one_scalar_or_none() -> None:
     ],
 )
 def test_yaml_outside_the_subset_is_refused_with_its_place(text: str, reason: str) -> None:
-    with pytest.raises(ValueError, match=r"^not YAML of the catalog's subset: ") as caught:
+    with pytest.raises(ValueError, match=r"^not YAML of the platform's subset: ") as caught:
         parse_yaml(text)
-    assert str(caught.value) == f"not YAML of the catalog's subset: {reason}"
+    assert str(caught.value) == f"not YAML of the platform's subset: {reason}"
 
 
 def test_a_yaml_error_does_not_show_the_text() -> None:
