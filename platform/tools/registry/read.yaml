@@ -1,0 +1,355 @@
+# The read-only tools: each asks a question of a node, and none is meant to change one.
+
+- name: list_nodes
+  version: 1
+  description: "List the nodes of the system: their names and the services, paths and endpoints you may ask about."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  handler: list_nodes
+  max_output_bytes: 16384
+
+- name: get_service_status
+  version: 1
+  description: "Show a systemd service's state on a node, with its last log lines."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    unit: {type: string, pattern: '^[a-z0-9@._-]+\.service$', from: context.node.services, description: "The service's unit, as list_nodes names it."}
+  exec:
+    argv: [systemctl, status, --no-pager, --full, --lines=20, "{unit}"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: list_failed_units
+  version: 1
+  description: "List the systemd units of a node that are in the failed state."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [systemctl, list-units, --state=failed, --no-pager, --plain]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: tail_journal
+  version: 1
+  description: "Show the last journal lines of a service on a node."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    unit: {type: string, pattern: '^[a-z0-9@._-]+\.service$', from: context.node.services, description: "The service's unit."}
+    lines: {type: integer, minimum: 1, maximum: 500, default: 100, description: "How many lines, counted from the newest."}
+    since: {type: string, pattern: '^[0-9]{1,4}(s|m|h|d)$', default: 7d, description: "How far back to look: a number and s, m, h or d, such as 15m."}
+  exec:
+    argv: [journalctl, --no-pager, "--unit={unit}", "--lines={lines}", "--since=-{since}"]
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 65536
+
+- name: read_file
+  version: 1
+  description: "Read a text file of a node. Only the paths list_nodes names as readable can be read."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    path: {type: path, from: context.node.readable_paths, description: "The file's absolute path."}
+  handler: read_file
+  max_output_bytes: 65536
+
+- name: list_dir
+  version: 1
+  description: "List a directory of a node, hidden entries included, with sizes, owners and modes."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    path: {type: path, from: context.node.readable_paths, description: "The directory's absolute path, one of the readable paths or below one."}
+  exec:
+    argv: [ls, -l, --all, --time-style=long-iso, --, "{path}"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 32768
+
+- name: check_disk_usage
+  version: 1
+  description: "Show how full each file system of a node is."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [df, --human-readable, "--output=source,fstype,size,used,avail,pcent,target"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: check_inodes
+  version: 1
+  description: "Show how many inodes each file system of a node has used and has left."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [df, "--output=source,fstype,itotal,iused,iavail,ipcent,target"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: check_memory
+  version: 1
+  description: "Show a node's memory and swap, in mebibytes."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [free, --mebi, --wide]
+    timeout_s: 10
+    kill_after_s: 5
+    max_output_bytes: 4096
+
+- name: list_processes
+  version: 1
+  description: "List a node's processes, the heaviest first by CPU or by memory. The list is cut after its first lines."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    by: {type: string, enum: [cpu, mem], default: cpu, description: "What to sort by: cpu or mem."}
+  exec:
+    argv: [ps, -e, -o, "pid,ppid,user,pcpu,pmem,rss,stat,etime,args", "--sort=-%{by}", --cols=160]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 8192
+
+- name: network_interfaces
+  version: 1
+  description: "Show a node's network interfaces with their state and addresses."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [ip, -brief, address, show]
+    timeout_s: 10
+    kill_after_s: 5
+    max_output_bytes: 8192
+
+- name: list_listening_ports
+  version: 1
+  description: "List the TCP and UDP ports a node listens on, with the process behind each."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [ss, --listening, --tcp, --udp, --numeric, --processes]
+    timeout_s: 10
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: dns_lookup
+  version: 1
+  description: "Ask a node's resolver for a host name and show its answer."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node that asks."}
+    name: {type: string, pattern: '^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$', description: "The host name: lowercase letters, digits, dots and hyphens."}
+  exec:
+    argv: [dig, -r, +timeout=2, +tries=1, -q, "{name}"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 8192
+
+- name: http_probe
+  version: 1
+  description: "Send an HTTP request to one of a node's endpoints from the probe client, and show the status, the headers and the start of the body."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node whose endpoint is asked."}
+    endpoint: {type: string, from: context.node.http_endpoints, description: "The endpoint's name, as list_nodes names it."}
+  exec:
+    argv: [curl, --disable, --globoff, --silent, --show-error, --insecure, --include, --max-time, "10", "{endpoint}"]
+    "on": probe_client
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: nginx_test_config
+  version: 1
+  description: "Check nginx's configuration on a node without loading it, and show what nginx says."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [nginx, -t]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 8192
+
+- name: docker_ps
+  version: 1
+  description: "List a node's containers, the stopped ones too, with their state."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [docker, ps, --all]
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: docker_logs
+  version: 1
+  description: "Show the last log lines of a container on a node."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    container: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$', description: "The container's name or ID, as docker_ps shows it."}
+    lines: {type: integer, minimum: 1, maximum: 500, default: 100, description: "How many lines, counted from the newest."}
+  exec:
+    argv: [docker, logs, "--tail={lines}", "{container}"]
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 65536
+
+- name: docker_inspect
+  version: 1
+  description: "Show a container's state, image, restart policy and restart count."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    container: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$', description: "The container's name or ID, as docker_ps shows it."}
+  exec:
+    argv:
+      - docker
+      - inspect
+      - --type=container
+      - {literal: "--format={{json .State}} image={{.Config.Image}} restart={{.HostConfig.RestartPolicy.Name}} restarts={{.RestartCount}}"}
+      - "{container}"
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: pg_isready
+  version: 1
+  description: "Ask whether PostgreSQL on a node accepts connections."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [pg_isready]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 4096
+
+- name: pg_activity_summary
+  version: 1
+  description: "Count PostgreSQL's connections on a node by state, beside the most it allows."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - --no-psqlrc
+      - --no-align
+      - "--command=SELECT coalesce(state, 'none') AS state, count(*) AS connections, current_setting('max_connections') AS max_connections FROM pg_stat_activity GROUP BY 1 ORDER BY 2 DESC"
+    timeout_s: 20
+    kill_after_s: 5
+    max_output_bytes: 8192
+
+- name: redis_ping
+  version: 1
+  description: "Ask whether Redis on a node answers."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [redis-cli, ping]
+    timeout_s: 10
+    kill_after_s: 5
+    max_output_bytes: 4096
+
+- name: redis_info
+  version: 1
+  description: "Show one section of what Redis on a node reports about itself."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    section: {type: string, enum: [server, clients, memory, persistence, stats, replication, cpu, keyspace], default: memory, description: "The section."}
+  exec:
+    argv: [redis-cli, info, "{section}"]
+    timeout_s: 10
+    kill_after_s: 5
+    max_output_bytes: 16384
+
+- name: query_logs
+  version: 1
+  description: "Search the collected logs of a service on a node."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    service: {type: string, from: context.node.services, description: "The service's unit."}
+    since: {type: string, pattern: '^[0-9]{1,4}(s|m|h|d)$', default: 1h, description: "How far back to look: a number and s, m, h or d, such as 15m."}
+    level: {type: string, enum: [error, warning, info], default: warning, description: "The least severe level to show."}
+  handler: query_logs
+  max_output_bytes: 65536
+
+- name: query_metrics
+  version: 1
+  description: "Show how one measure of a node developed over the last while."
+  risk: read
+  mutating: false
+  applicable_categories: []
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    metric: {type: string, enum: [cpu_usage, memory_usage, disk_usage], description: "The measure."}
+    since: {type: string, pattern: '^[0-9]{1,4}(s|m|h|d)$', default: 1h, description: "How far back to look: a number and s, m, h or d, such as 15m."}
+  handler: query_metrics
+  max_output_bytes: 16384

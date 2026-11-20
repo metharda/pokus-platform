@@ -15,3 +15,33 @@ labels:
     description: A process uses all the processor time it can get.
   - name: service.stopped
     description: A service that should run is not running.
+  # The labels the tool registry names beside those above: a tool lists the diagnoses
+  # for which it is a fitting action, and every label it lists is one of a taxonomy.
+  - name: service.failed
+    description: A service ended with an error and was not started again.
+  - name: service.disabled
+    description: A service is not set to start and so does not run.
+  - name: resource.inodes_exhausted
+    description: A file system has no inode left for a new file.
+  - name: resource.memory_exhausted
+    description: The system has no memory left to give.
+  - name: resource.fd_exhausted
+    description: A process or the system cannot open another file.
+  - name: container.stopped
+    description: A container that should run is not running.
+  - name: container.daemon_stopped
+    description: The service that runs the containers is not running.
+  - name: container.crash_loop
+    description: A container starts, fails and is started again, over and over.
+  - name: database.unavailable
+    description: The database does not accept connections.
+  - name: database.connections_exhausted
+    description: The database has no connection left to give.
+  - name: database.access_denied
+    description: The database refuses a client it should accept.
+  - name: network.dns_failure
+    description: Host names cannot be resolved.
+  - name: permissions.wrong_mode
+    description: A file's mode keeps a service from using it.
+  - name: permissions.wrong_owner
+    description: A file's owner keeps a service from using it.

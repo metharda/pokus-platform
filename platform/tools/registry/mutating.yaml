@@ -1,0 +1,264 @@
+# The tools that change a node. Each lists the diagnoses for which it is a fitting action.
+
+- name: start_service
+  version: 1
+  description: "Start a systemd service on a node."
+  risk: low
+  mutating: true
+  applicable_categories:
+    - service.stopped
+    - service.failed
+    - service.disabled
+    - config.syntax_error
+    - config.wrong_value
+    - resource.disk_full
+    - resource.inodes_exhausted
+    - resource.memory_exhausted
+    - resource.fd_exhausted
+    - container.stopped
+    - container.daemon_stopped
+    - database.unavailable
+    - permissions.wrong_mode
+    - permissions.wrong_owner
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    unit: {type: string, pattern: '^[a-z0-9@._-]+\.service$', from: context.node.services, description: "The service's unit."}
+  exec:
+    argv: [systemctl, start, "{unit}"]
+    timeout_s: 120
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [systemctl, is-active, "{unit}"]
+
+- name: restart_service
+  version: 1
+  description: "Restart a systemd service on a node."
+  risk: medium
+  mutating: true
+  applicable_categories:
+    - service.stopped
+    - service.failed
+    - service.disabled
+    - config.syntax_error
+    - config.wrong_value
+    - resource.disk_full
+    - resource.inodes_exhausted
+    - resource.memory_exhausted
+    - resource.fd_exhausted
+    - resource.cpu_saturated
+    - container.stopped
+    - container.daemon_stopped
+    - container.crash_loop
+    - database.unavailable
+    - database.connections_exhausted
+    - database.access_denied
+    - network.dns_failure
+    - permissions.wrong_mode
+    - permissions.wrong_owner
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    unit: {type: string, pattern: '^[a-z0-9@._-]+\.service$', from: context.node.services, description: "The service's unit."}
+  exec:
+    argv: [systemctl, restart, "{unit}"]
+    timeout_s: 210
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [systemctl, is-active, "{unit}"]
+
+- name: stop_service
+  version: 1
+  description: "Stop a systemd service on a node. This tool does not start it again; a service that a socket or a timer activates can start again by itself."
+  risk: high
+  mutating: true
+  applicable_categories:
+    - resource.cpu_saturated
+    - resource.memory_exhausted
+    - resource.fd_exhausted
+    - resource.disk_full
+    - container.crash_loop
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    unit: {type: string, pattern: '^[a-z0-9@._-]+\.service$', from: context.node.services, description: "The service's unit."}
+  exec:
+    argv: [systemctl, stop, "{unit}"]
+    timeout_s: 120
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [systemctl, is-active, "{unit}"]
+
+- name: nginx_reload
+  version: 1
+  description: "Have nginx on a node load its configuration again without stopping."
+  risk: low
+  mutating: true
+  applicable_categories:
+    - config.syntax_error
+    - config.wrong_value
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [systemctl, reload, nginx.service]
+    timeout_s: 30
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [systemctl, is-active, nginx.service]
+
+- name: docker_start_container
+  version: 1
+  description: "Start a stopped container on a node."
+  risk: low
+  mutating: true
+  applicable_categories:
+    - container.stopped
+    - container.daemon_stopped
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    container: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$', description: "The container's name or ID, as docker_ps shows it."}
+  exec:
+    argv: [docker, start, "{container}"]
+    timeout_s: 60
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [docker, inspect, --type=container, {literal: "--format={{.State.Status}}"}, "{container}"]
+
+- name: docker_restart_container
+  version: 1
+  description: "Restart a container on a node."
+  risk: low
+  mutating: true
+  applicable_categories:
+    - container.crash_loop
+    - container.stopped
+    - config.syntax_error
+    - config.wrong_value
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    container: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$', description: "The container's name or ID, as docker_ps shows it."}
+  exec:
+    argv: [docker, restart, "{container}"]
+    timeout_s: 90
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [docker, inspect, --type=container, {literal: "--format={{.State.Status}}"}, "{container}"]
+
+- name: docker_remove_container
+  version: 1
+  description: "Remove a container from a node, stopping it first when it runs. It is gone afterwards."
+  risk: high
+  mutating: true
+  applicable_categories:
+    - container.crash_loop
+    - resource.disk_full
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    container: {type: string, pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$', description: "The container's name or ID, as docker_ps shows it."}
+  exec:
+    argv: [docker, rm, --force, "{container}"]
+    timeout_s: 60
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [docker, ps, --all]
+
+- name: apply_config_patch
+  version: 1
+  description: "Change a configuration file of a node with a unified diff. The file is checked afterwards and put back as it was when the check fails. Only the paths list_nodes names as patchable can be changed."
+  risk: medium
+  mutating: true
+  applicable_categories:
+    - config.syntax_error
+    - config.wrong_value
+    - container.crash_loop
+    - database.access_denied
+    - database.connections_exhausted
+    - network.dns_failure
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    path: {type: path, from: context.node.patchable_paths, description: "The file's absolute path."}
+    diff: {type: text, max_length: 65536, description: "The change as a unified diff of the file, with exact context lines."}
+  handler: apply_config_patch
+  max_output_bytes: 16384
+
+- name: vacuum_journal
+  version: 1
+  description: "Shrink a node's journal: rotate it, then delete its oldest archived files until what is left is no larger than a size and holds nothing older than an age. Both bounds apply; leave one at its default to bound by the other alone."
+  risk: medium
+  mutating: true
+  applicable_categories:
+    - resource.disk_full
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    size: {type: string, pattern: '^[0-9]{1,4}[KMG]$', default: 4G, description: "The most the journal may take: a number and K, M or G, such as 200M."}
+    age: {type: string, pattern: '^[0-9]{1,3}(m|h|d|w|y)$', default: 10y, description: "The oldest entry to keep: a number and m, h, d, w or y, such as 2d."}
+  exec:
+    argv: [journalctl, --rotate, "--vacuum-size={size}", "--vacuum-time={age}"]
+    timeout_s: 60
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [journalctl, --disk-usage]
+
+- name: rotate_logs
+  version: 1
+  description: "Rotate every log file that the node's logrotate configuration names now, whatever its size or age."
+  risk: medium
+  mutating: true
+  applicable_categories:
+    - resource.disk_full
+    - resource.inodes_exhausted
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+  exec:
+    argv: [logrotate, --force, /etc/logrotate.conf]
+    timeout_s: 300
+    kill_after_s: 5
+    max_output_bytes: 16384
+  post_check:
+    argv: [df, --human-readable, "--output=target,pcent,avail", /var/log]
+
+- name: remove_file
+  version: 1
+  description: "Delete one file below /tmp, /var/tmp or /var/cache on a node. Directories are not deleted, and a file that is not there is an error."
+  risk: medium
+  mutating: true
+  applicable_categories:
+    - resource.disk_full
+    - resource.inodes_exhausted
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    path: {type: path, within: [/tmp, /var/tmp, /var/cache], description: "The file's absolute path."}
+  exec:
+    argv: [rm, --, "{path}"]
+    timeout_s: 30
+    kill_after_s: 5
+    max_output_bytes: 8192
+  post_check:
+    argv: [df, --human-readable, "--output=target,pcent,avail", /tmp, /var/tmp, /var/cache]
+
+- name: kill_process
+  version: 1
+  description: "Send a signal to one process of a node."
+  risk: high
+  mutating: true
+  applicable_categories:
+    - resource.cpu_saturated
+    - resource.memory_exhausted
+    - resource.fd_exhausted
+    - database.connections_exhausted
+  args:
+    node: {type: string, from: context.nodes, description: "The node."}
+    pid: {type: integer, minimum: 2, maximum: 4194304, description: "The process's ID, as list_processes shows it."}
+    signal: {type: string, enum: [TERM, KILL], default: TERM, description: "TERM asks the process to end; KILL ends it at once."}
+  exec:
+    argv: [kill, -s, "{signal}", "{pid}"]
+    timeout_s: 15
+    kill_after_s: 5
+    max_output_bytes: 4096
+  post_check:
+    argv: [ps, -o, "pid,stat,etime,args", "--pid={pid}"]
