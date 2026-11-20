@@ -15,6 +15,7 @@ members = ["packages/*"]
 potka-core = { workspace = true }
 potka-db = { workspace = true }
 potka-incus = { workspace = true }
+potka-tools = { workspace = true }
 
 [dependency-groups]
 build = ["uv_build==0.12.24"]

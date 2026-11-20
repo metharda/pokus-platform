@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "The command line of the Pokus Platform."
 license = "Apache-2.0"
 requires-python = "==3.12.*"
-dependencies = ["potka-core"]
+dependencies = ["potka-core", "potka-tools"]
 
 [project.scripts]
 potka = "potka_cli.main:main"

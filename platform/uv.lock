@@ -18,6 +18,7 @@ members = [
     "potka-incus",
     "potka-injector",
     "potka-orchestrator",
+    "potka-tools",
     "potka-verifier",
 ]
 
@@ -620,10 +621,14 @@ version = "0.0.0"
 source = { editable = "packages/potka-cli" }
 dependencies = [
     { name = "potka-core" },
+    { name = "potka-tools" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "potka-core", editable = "packages/potka-core" }]
+requires-dist = [
+    { name = "potka-core", editable = "packages/potka-core" },
+    { name = "potka-tools", editable = "packages/potka-tools" },
+]
 
 [[package]]
 name = "potka-core"
@@ -743,6 +748,23 @@ dependencies = [
 requires-dist = [
     { name = "potka-core", editable = "packages/potka-core" },
     { name = "potka-db", editable = "packages/potka-db" },
+]
+
+[[package]]
+name = "potka-tools"
+version = "0.0.0"
+source = { editable = "packages/potka-tools" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "potka-core" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = "==4.26.0" },
+    { name = "potka-core", editable = "packages/potka-core" },
+    { name = "pydantic", specifier = "==2.14.2" },
 ]
 
 [[package]]
