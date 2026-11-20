@@ -36,8 +36,9 @@ Incus itself:
 * An instance's configuration also holds its image's properties as
   ``image.*`` keys, which the configuration's own list does not have.
 
-Devices are compared as the platform gives them: a ``disk`` and a ``nic``
-on a managed network; any other type is a difference.
+Devices are compared by the keys of two types: a ``disk`` (in Incus's
+answers, and in what a test asks of Incus directly) and a ``nic`` on a
+managed network; any other type is a difference.
 
 :func:`checked` wraps a transport so that every request a test makes
 through it, and every answer, is compared; the first difference fails the

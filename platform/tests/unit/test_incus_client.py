@@ -29,6 +29,7 @@ from potka_testing.incus import (
     started,
     sync,
 )
+from potka_testing.incus_api import Api
 
 WAIT = f"/1.0/operations/{OPERATION}/wait"
 # A run's network, in the form the infrastructure names one.
@@ -121,10 +122,7 @@ def test_the_project_s_instances_are_listed_by_name() -> None:
 
 def test_an_instance_is_created_from_a_fingerprint_with_explicit_profiles() -> None:
     script = Script().on("POST", "/1.0/instances", started()).on("GET", WAIT, ended())
-    devices = {
-        "eth0": {"type": "nic", "network": RUN_NETWORK, "name": "eth0"},
-        "root": {"type": "disk", "path": "/", "pool": "p", "size": "8GiB"},
-    }
+    devices = {"eth0": {"type": "nic", "network": RUN_NETWORK, "name": "eth0"}}
     config = {
         "limits.cpu": "2-3",
         "limits.memory": "1GiB",
@@ -210,8 +208,8 @@ def test_a_creation_takes_a_fingerprint_a_profile_list_and_no_other_source() -> 
         ({"config": {"raw.lxc": "lxc.apparmor.profile=unconfined"}}, ValueError, "'raw.lxc'"),
         ({"config": {"volatile.base_image": FINGERPRINT}}, ValueError, "'volatile.base_image'"),
         ({"config": {"user.note": "x"}}, ValueError, "'user.note'"),
-        # Of a target's environment the platform sets one variable, of its limits none of
-        # the kernel's own.
+        # Of a target's environment the platform sets one variable, of its limits two
+        # keys, each whole.
         ({"config": {"environment.SCENARIO": "x"}}, ValueError, "'environment.SCENARIO'"),
         (
             {"config": {"environment.OTEL_RESOURCE_ATTRIBUTES.x": "a=b"}},
@@ -219,6 +217,11 @@ def test_a_creation_takes_a_fingerprint_a_profile_list_and_no_other_source() -> 
             "'environment.OTEL_RESOURCE_ATTRIBUTES.x'",
         ),
         ({"config": {"limits.kernel.memlock": "unlimited"}}, ValueError, "'limits.kernel.memlock'"),
+        ({"config": {"limits.processes": "100"}}, ValueError, "'limits.processes'"),
+        ({"config": {"limits.cpu.allowance": "50%"}}, ValueError, "'limits.cpu.allowance'"),
+        ({"config": {"limits.memory.swap": "false"}}, ValueError, "'limits.memory.swap'"),
+        ({"config": {"limits.cpu ": "1"}}, ValueError, "'limits.cpu '"),
+        ({"config": {"limits": "1"}}, ValueError, "'limits'"),
         ({"config": [("limits.cpu", "1")]}, TypeError, "maps strings to strings"),
         ({"config": [("limits.cpu", "1", "x")]}, TypeError, "maps strings to strings"),
         ({"config": "limits.cpu=1"}, TypeError, "maps strings to strings"),
@@ -234,30 +237,22 @@ def test_a_creation_takes_a_fingerprint_a_profile_list_and_no_other_source() -> 
             ValueError,
             "'data'",
         ),
-        ({"devices": {"root": {"type": "disk", "pool": "p"}}}, ValueError, "'root'"),
-        # A device replaces the profile's of its name whole: a root disk says its pool and
-        # its size, a NIC its network, and that is a run's.
-        ({"devices": {"root": {"type": "disk", "path": "/", "pool": "p"}}}, ValueError, "'root'"),
+        # No disk is an instance's own, the root disk with its pool and size neither.
+        ({"devices": {"root": ROOT_DISK}}, ValueError, "'root'"),
+        ({"devices": {"root": {**ROOT_DISK, "size": "1GiB"}}}, ValueError, "'root'"),
+        ({"devices": {"eth0": {"type": "disk", "network": RUN_NETWORK}}}, ValueError, "'eth0'"),
+        ({"devices": {"eth0": {"type": "NIC", "network": RUN_NETWORK}}}, ValueError, "'eth0'"),
+        # A NIC under another name could replace a profile's device of that name, its root
+        # disk too; and its interface in the instance has the same name or Incus's.
+        ({"devices": {"root": {"type": "nic", "network": RUN_NETWORK}}}, ValueError, "'root'"),
+        ({"devices": {"eth1": {"type": "nic", "network": RUN_NETWORK}}}, ValueError, "'eth1'"),
         (
-            {"devices": {"root": {"type": "disk", "path": "/", "size": "8GiB"}}},
+            {"devices": {"eth0": {"type": "nic", "network": RUN_NETWORK, "name": "lo"}}},
             ValueError,
-            "'root'",
+            "'eth0'",
         ),
-        (
-            {"devices": {"root": {"type": "disk", "path": "/", "pool": "p", "size": "8 GB"}}},
-            ValueError,
-            "'root'",
-        ),
-        (
-            {"devices": {"root": {"type": "disk", "path": "/", "pool": "p", "size": "0"}}},
-            ValueError,
-            "'root'",
-        ),
-        (
-            {"devices": {"root": {"type": "disk", "path": "/", "pool": "p", "source": "/srv"}}},
-            ValueError,
-            "'root'",
-        ),
+        # A device replaces the profile's of its name whole: a NIC says its network, and
+        # that is a run's.
         ({"devices": {"eth0": {"type": "nic", "name": "eth0"}}}, ValueError, "'eth0'"),
         ({"devices": {"eth0": {"type": "nic", "network": "incusbr0"}}}, ValueError, "'eth0'"),
         ({"devices": {"eth0": {"type": "nic", "network": "r-abc"}}}, ValueError, "'eth0'"),
@@ -267,18 +262,12 @@ def test_a_creation_takes_a_fingerprint_a_profile_list_and_no_other_source() -> 
             "'eth0'",
         ),
         ({"devices": {"eth0": {"type": "none"}}}, ValueError, "'eth0'"),
-        # Each of these has all its device must say, and one thing more or elsewhere.
+        # This NIC has all it must say and one thing more.
         (
             {"devices": {"eth0": {"type": "nic", "network": RUN_NETWORK, "nictype": "bridged"}}},
             ValueError,
             "'eth0'",
         ),
-        (
-            {"devices": {"root": {**ROOT_DISK, "source": "/srv"}}},
-            ValueError,
-            "'root'",
-        ),
-        ({"devices": {"data": {**ROOT_DISK, "path": "/srv"}}}, ValueError, "'data'"),
         (
             {"devices": {"otlp": {"type": "proxy", "listen": "tcp:127.0.0.1:4317"}}},
             ValueError,
@@ -308,6 +297,49 @@ def test_an_instance_is_given_only_what_the_platform_gives_one(
         )
     assert type(raised.value) is refusal
     assert script.requests == []
+
+
+def test_of_the_keys_incus_has_for_an_instance_the_platform_gives_four() -> None:
+    # Every configuration key Incus lists for an instance, with a word where the list has a
+    # pattern: each is refused before a request, but the platform's. Three of its four are
+    # whole keys of the list; the fourth is one variable under the list's environment.*.
+    listed = Api().config["instance"]
+    variable = "environment.OTEL_RESOURCE_ATTRIBUTES"
+    assert sorted(incus.CONFIG_KEYS) == [
+        variable,
+        "limits.cpu",
+        "limits.memory",
+        "security.nesting",
+    ]
+    assert set(incus.CONFIG_KEYS) - {variable} <= set(listed)
+    assert "environment.*" in listed
+    keys = sorted({key.replace("*", "word").replace("<name>", "word") for key in listed})
+    assert len(keys) > 100
+    assert "environment.word" in keys
+    script = Script()
+    for _ in range(3):
+        script.on("POST", "/1.0/instances", started()).on("GET", WAIT, ended())
+    passed = []
+    for key in keys:
+        try:
+            script.client().create(
+                "web", fingerprint=FINGERPRINT, profiles=("target-container",), config={key: "1"}
+            )
+        except ValueError as refused:
+            assert repr(key) in str(refused)
+        else:
+            passed.append(key)
+    assert passed == ["limits.cpu", "limits.memory", "security.nesting"]
+    assert len(script.requests) == 2 * len(passed)
+    # Of devices the list is one type with three keys, under one name.
+    assert incus.DEVICE_KEYS == {"nic": ("type", "name", "network")}
+    assert incus.NIC_NAME == "eth0"
+    nic = {"type": "nic", "network": RUN_NETWORK}
+    script.on("POST", "/1.0/instances", started()).on("GET", WAIT, ended())
+    script.client().create(
+        "web", fingerprint=FINGERPRINT, profiles=("target-container",), devices={"eth0": nic}
+    )
+    assert script.body(-2)["devices"] == {"eth0": nic}
 
 
 @pytest.mark.parametrize(

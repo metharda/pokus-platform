@@ -16,8 +16,9 @@ reads some of an image's properties when an instance starts: one that
 says it requires nesting does not start without it. The caller sees that
 as a failed operation.) An instance's own configuration and devices win
 over its profiles', so the client passes on only what the platform gives
-an instance (:data:`CONFIG_KEYS`, :data:`CONFIG_PREFIXES`,
-:data:`DEVICE_KEYS`) and refuses anything else.
+an instance (:data:`CONFIG_KEYS`, :data:`DEVICE_KEYS`) and refuses
+anything else: every disk too. The one device it passes on is a NIC under
+one fixed name, so it can take the place of no other device of a profile.
 
 Incus answers at once (``sync``), with an operation to wait for
 (``async``), or with an error. The client waits for an operation's end and
@@ -66,13 +67,21 @@ KINDS = ("container", "virtual-machine")
 ACCOUNT_RE = re.compile(r"[a-z_][a-z0-9_-]{0,31}")
 # What the platform gives an instance beside its profiles. An instance's own configuration
 # and devices win over its profiles', so only these are passed on: whether it nests, its
-# limits, the one variable of its environment, its NIC on its run's network and its root
-# disk. Each replaces what a profile says of the same key or device, and nothing else can.
-CONFIG_KEYS = ("security.nesting", "environment.OTEL_RESOURCE_ATTRIBUTES")
-CONFIG_PREFIXES = ("limits.",)
-# Limits of the kernel's own (limits.kernel.*) are none the platform gives.
-CONFIG_REFUSED = ("limits.kernel.",)
-DEVICE_KEYS = {"disk": ("type", "path", "pool", "size"), "nic": ("type", "name", "network")}
+# CPUs and its memory, the one variable of its environment and its NIC on its run's
+# network. Each replaces what a profile says of the same key or device, and nothing else
+# can. Both lists are whole: a key that only begins like one of them is refused, and so
+# is every device of another type, a disk and the root disk among them.
+CONFIG_KEYS = (
+    "security.nesting",
+    "environment.OTEL_RESOURCE_ATTRIBUTES",
+    "limits.cpu",
+    "limits.memory",
+)
+DEVICE_KEYS = {"nic": ("type", "name", "network")}
+# The name of the NIC's device, and of its interface in the instance when that is said. A
+# device replaces a profile's device of the same name whole, whatever the two are: under
+# a name of its caller's choice a NIC could take the place of a profile's disk.
+NIC_NAME = "eth0"
 # A run's network, as the infrastructure names one.
 RUN_NETWORK_RE = re.compile(r"r-[a-z0-9]{12}")
 FORM = "an answer that is not in Incus's form"
@@ -410,8 +419,7 @@ def checked_config(config: Mapping[str, str] | None) -> dict[str, str]:
 
     Raises:
         TypeError: It does not map strings to strings.
-        ValueError: A key is none of :data:`CONFIG_KEYS` and has no prefix
-            of :data:`CONFIG_PREFIXES`, or has one of :data:`CONFIG_REFUSED`.
+        ValueError: A key is none of :data:`CONFIG_KEYS`.
     """
     given = config if config is not None else {}
     if not isinstance(given, Mapping) or not all(
@@ -419,8 +427,7 @@ def checked_config(config: Mapping[str, str] | None) -> dict[str, str]:
     ):
         raise TypeError("an instance's configuration maps strings to strings")
     for key in given:
-        listed = key in CONFIG_KEYS or key.startswith(CONFIG_PREFIXES)
-        if not listed or key.startswith(CONFIG_REFUSED):
+        if key not in CONFIG_KEYS:
             raise ValueError(f"not a configuration key the platform gives an instance: {key!r}")
     return dict(given)
 
@@ -431,15 +438,17 @@ def checked_devices(
     """DEVICES as a dict, when each is a device the platform gives an instance.
 
     A device replaces a profile's device of the same name whole, so each
-    must say all that matters of it: a root disk its pool and its size, a
-    NIC its network, which is a run's.
+    must say all that matters of it: a NIC its network, which is a run's.
+    No disk is given, and the NIC is named :data:`NIC_NAME`, so that it
+    replaces nothing else of a profile; its interface's name may be left
+    to Incus.
 
     Raises:
         TypeError: It does not map names to maps of strings.
         ValueError: A device is of another type than :data:`DEVICE_KEYS`
-            has, holds another key, is a disk that is not the root disk or
-            lacks its pool or a size Incus could have written, or is a NIC
-            on another network than a run's.
+            has (a disk is), holds another key, is a NIC on another
+            network than a run's, or has another name than
+            :data:`NIC_NAME`, itself or its interface.
     """
     given: dict[str, dict[str, str]] = {}
     listed = devices if devices is not None else {}
@@ -450,24 +459,13 @@ def checked_devices(
             isinstance(k, str) and isinstance(v, str) for k, v in device.items()
         ):
             raise TypeError("an instance's devices map names to maps of strings")
-        kind = device.get("type", "")
-        allowed = DEVICE_KEYS.get(kind)
-        if allowed is None or not set(device) <= set(allowed) or not _whole(kind, device):
+        allowed = DEVICE_KEYS.get(device.get("type", ""))
+        on_a_run = RUN_NETWORK_RE.fullmatch(device.get("network", "")) is not None
+        named = name == NIC_NAME and device.get("name", NIC_NAME) == NIC_NAME
+        if allowed is None or not set(device) <= set(allowed) or not on_a_run or not named:
             raise ValueError(f"not a device the platform gives an instance: {name!r}")
         given[name] = dict(device)
     return given
-
-
-def _whole(kind: str, device: Mapping[str, str]) -> bool:
-    """Whether a device says all that the platform's device of its KIND must say."""
-    if kind == "nic":
-        return RUN_NETWORK_RE.fullmatch(device.get("network", "")) is not None
-    if device.get("path") != "/" or not device.get("pool"):
-        return False
-    try:
-        return parse_size(device.get("size", "")) > 0
-    except ValueError:
-        return False
 
 
 def checked_wait(wait: int) -> int:
@@ -742,9 +740,10 @@ class Incus:
             fingerprint: The image's fingerprint: 64 lower-case hexadecimal digits.
             profiles: The profiles to apply, in order; at least one.
             config: The instance's own configuration: only keys of
-                :data:`CONFIG_KEYS` and :data:`CONFIG_PREFIXES`.
-            devices: The instance's own devices: only a NIC on a managed
-                network and the root disk, with the keys of :data:`DEVICE_KEYS`.
+                :data:`CONFIG_KEYS`.
+            devices: The instance's own devices: only the NIC
+                :data:`NIC_NAME` on a run's network, with the keys of
+                :data:`DEVICE_KEYS`; no disk.
             kind: ``container`` or ``virtual-machine``.
 
         Raises:

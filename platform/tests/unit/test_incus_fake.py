@@ -73,14 +73,18 @@ def test_profiles_apply_in_order_and_an_instance_s_own_keys_win() -> None:
     bench.create("plain", fingerprint=FINGERPRINT, profiles=(TARGET, "plain"))
     assert bench.instance("plain").expanded_devices["root"] == {"type": "disk", "path": "/"}
     assert bench.instance("plain").root_size is None
-    # What the instance itself was given wins over every profile.
-    bench.create(
-        "own",
-        fingerprint=FINGERPRINT,
-        profiles=(TARGET, "wide"),
-        config={"security.nesting": "false"},
-        devices={"root": {**wide, "size": "32GiB"}},
-    )
+    # What the instance itself was given wins over every profile. The client gives an
+    # instance no disk of its own, so this creation is asked of Incus directly.
+    body = {
+        "name": "own",
+        "type": "container",
+        "source": {"type": "image", "fingerprint": FINGERPRINT},
+        "profiles": [TARGET, "wide"],
+        "config": {"security.nesting": "false"},
+        "devices": {"root": {**wide, "size": "32GiB"}},
+    }
+    with connection(fake, "bench") as http:
+        assert http.post("/1.0/instances", params={"project": "bench"}, json=body).is_success
     own = bench.instance("own")
     assert (own.expanded_config["security.nesting"], own.root_size) == ("false", 32 * GIB)
     assert (own.config["security.nesting"], sorted(own.devices)) == ("false", ["root"])
