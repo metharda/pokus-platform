@@ -70,11 +70,12 @@ lock: ## Update uv.lock
 	$(UV) lock
 
 .PHONY: lint
-lint: ## ruff, ruff format, mypy (strict) and actionlint (with ShellCheck)
+lint: ## ruff, ruff format, mypy (strict), ShellCheck, no shell on the command path, actionlint
 	$(RUN) ruff check $(CODE)
 	$(RUN) ruff format --check $(CODE)
 	$(RUN) mypy packages/*/src tests ../ci
 	$(RUN) shellcheck $(sort $(wildcard tests/*/*.sh))
+	$(CHECK) command-path
 	$(if $(wildcard ../.github/workflows/ci.yml),$(RUN) actionlint ../.github/workflows/ci.yml,@echo "lint: no workflow yet, actionlint not run")
 
 .PHONY: test
@@ -86,8 +87,12 @@ e2e-real: ## The checks against a real Incus on a lab host (tests/e2e_real; neve
 	$(RUN) pytest -q -s -p no:cacheprovider tests/e2e_real/incus_real.py
 
 .PHONY: schemas
-schemas: ## Write the JSON Schemas of the catalog's files (schemas/catalog/) from their models
+schemas: ## Write the JSON Schemas of the catalog's files and of the tool registry (schemas/) from their models
 	$(CHECK) generated --write schemas
+
+.PHONY: tools
+tools: ## Write what the tool registry (tools/registry/) is compiled to: the model's tool schemas, the policy data, docs/tools.md
+	$(CHECK) generated --write tools
 
 .PHONY: golden-images
 golden-images: ## Write infra-data/golden-images.json from pokus-infrastructure's blueprints at INFRA_PIN (INFRA=<path>)

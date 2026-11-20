@@ -1,0 +1,404 @@
+{
+  "$comment": "The models that read a registry are stricter than this schema: they convert nothing, hold a command's elements to their forms and check what the fields of one entry say about each other. A file that matches the schema may still be refused.",
+  "$defs": {
+    "Arg": {
+      "additionalProperties": false,
+      "description": "An argument of a tool: its type, and the rule its value must fit.",
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The value of a call that leaves the argument out; without one it is required.",
+          "title": "Default"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the argument means; the model reads it.",
+          "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The values a string may have.",
+          "title": "Enum"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "enum": [
+                "context.nodes",
+                "context.node.services",
+                "context.node.http_endpoints",
+                "context.node.readable_paths",
+                "context.node.patchable_paths"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The list of the run's context that the value must be in.",
+          "title": "From"
+        },
+        "max_length": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most characters of a string, a path or a text.",
+          "title": "Max Length"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An integer's largest value.",
+          "title": "Maximum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An integer's smallest value.",
+          "title": "Minimum"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A string's form: a regular expression from ``^`` to ``$``, matched whole, ASCII.",
+          "title": "Pattern"
+        },
+        "type": {
+          "description": "What the value is. A text is for a handler only and never part of a command.",
+          "enum": [
+            "string",
+            "integer",
+            "path",
+            "text"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "within": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The roots a path must lie below, each an absolute path in its normal form.",
+          "title": "Within"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Arg",
+      "type": "object"
+    },
+    "Check": {
+      "additionalProperties": false,
+      "description": "A command that is run after a tool's own, to show what it did.",
+      "properties": {
+        "argv": {
+          "description": "The program and its arguments.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Marked"
+              }
+            ]
+          },
+          "minLength": 1,
+          "title": "Argv",
+          "type": "array"
+        }
+      },
+      "required": [
+        "argv"
+      ],
+      "title": "Check",
+      "type": "object"
+    },
+    "Exec": {
+      "additionalProperties": false,
+      "description": "The command of a tool, and its limits.",
+      "properties": {
+        "argv": {
+          "description": "The program and its arguments; an element may hold one argument's value.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Marked"
+              }
+            ]
+          },
+          "minLength": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "kill_after_s": {
+          "description": "The seconds after that end's signal at which the command is killed.",
+          "maximum": 30,
+          "minimum": 1,
+          "title": "Kill After S",
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "description": "The most bytes of each output stream that the model is given.",
+          "maximum": 1048576,
+          "minimum": 1,
+          "title": "Max Output Bytes",
+          "type": "integer"
+        },
+        "on": {
+          "default": "node",
+          "description": "Where it runs: in the node the call names, or on the run's probe client.",
+          "enum": [
+            "node",
+            "probe_client"
+          ],
+          "title": "On",
+          "type": "string"
+        },
+        "timeout_s": {
+          "description": "The seconds after which the command is ended.",
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "argv",
+        "timeout_s",
+        "kill_after_s",
+        "max_output_bytes"
+      ],
+      "title": "Exec",
+      "type": "object"
+    },
+    "Marked": {
+      "additionalProperties": false,
+      "description": "An element of a command that is taken as it is although it holds braces.",
+      "properties": {
+        "literal": {
+          "description": "The element's text.",
+          "minLength": 1,
+          "title": "Literal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "literal"
+      ],
+      "title": "Marked",
+      "type": "object"
+    },
+    "Tool": {
+      "additionalProperties": false,
+      "description": "A tool: what a model may call, and what stands behind it.",
+      "properties": {
+        "applicable_categories": {
+          "description": "The diagnoses for which a mutating tool is a fitting action: taxonomy labels.",
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+            "type": "string"
+          },
+          "title": "Applicable Categories",
+          "type": "array"
+        },
+        "args": {
+          "description": "The tool's arguments by name. A dictionary for the models' sake: nothing changes it.",
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,62}$": {
+              "$ref": "#/$defs/Arg"
+            }
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "description": {
+          "description": "What the tool does; the model reads it.",
+          "maxLength": 1000,
+          "title": "Description",
+          "type": "string"
+        },
+        "exec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Exec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The command the tool runs."
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "enum": [
+                "list_nodes",
+                "read_file",
+                "apply_config_patch",
+                "query_logs",
+                "query_metrics"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The handler of the executing service that carries the tool out, in place of a command.",
+          "title": "Handler"
+        },
+        "max_output_bytes": {
+          "anyOf": [
+            {
+              "maximum": 1048576,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most bytes a handler's tool gives the model; exactly beside handler.",
+          "title": "Max Output Bytes"
+        },
+        "mutating": {
+          "description": "Whether the tool changes its target.",
+          "title": "Mutating",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "The tool's name.",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "post_check": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Check"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A command run after the tool's own; only beside exec."
+        },
+        "risk": {
+          "description": "How much the tool can change: read for none; a forbidden tool is always denied.",
+          "enum": [
+            "read",
+            "low",
+            "medium",
+            "high",
+            "forbidden"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "version": {
+          "description": "The version of this entry; it rises when the entry changes.",
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "description",
+        "risk",
+        "mutating",
+        "applicable_categories"
+      ],
+      "title": "Tool",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "items": {
+    "$ref": "#/$defs/Tool"
+  },
+  "type": "array"
+}

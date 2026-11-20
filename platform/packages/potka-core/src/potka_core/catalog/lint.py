@@ -7,9 +7,12 @@ rules read a catalog whose every file has its form.
 
 Some rules compare the catalog with the golden images table
 (`potka_core.images`): the infrastructure's blueprints, their versions,
-types and packages.
+types and packages. Two compare it with the tool registry, of which the
+lint is given a view (`ToolView`): what each tool is, and what is wrong
+with a value for one of its arguments.
 
-The findings name scenario IDs and labels of ground truths: they are for
+The findings name scenario IDs, labels of ground truths and the tools and
+arguments their actions name, and never an argument's value: they are for
 the catalog's authors and never part of what a model reads.
 
 The rules:
@@ -100,9 +103,22 @@ The rules:
     without a dot such as ``config``, is no term here: an image is the
     same in every run on its blueprint, the controls included, so a
     common word in it tells nothing of a run's fault.
+``categories``
+    Every label that a tool of the tool registry names as a diagnosis it
+    fits is one the taxonomy lists.
+``actions``
+    Every action of a ground truth, acceptable, required or harmful, names
+    a tool of the tool registry that changes its target and is not
+    forbidden, and only arguments the tool has. A ``node`` given outright
+    is a node of the scenario's blueprint, and every value given outright
+    fits its argument's own rules: its type, its form, its allowed values,
+    its bounds and, where the tool fixes them, the roots of a path. A value
+    that uses a parameter is not checked, and neither is what a value must
+    be in a run (a service or a path of the node).
 
 A whole word is not preceded or followed by a letter, a digit or an
-underscore.
+underscore. A value is given outright when no string of it uses a
+parameter.
 """
 
 from __future__ import annotations
@@ -125,12 +141,21 @@ from potka_core.catalog.loader import (
     OVERLAY,
     SCENARIO,
     SCENARIOS,
+    TAXONOMY,
     Catalog,
     CatalogError,
     ScenarioVersion,
     load_catalog,
 )
-from potka_core.catalog.parameters import Choice, Range, Scalar, placeholders, render_text
+from potka_core.catalog.parameters import (
+    Choice,
+    Range,
+    Scalar,
+    placeholders,
+    render,
+    render_text,
+    tree_placeholders,
+)
 from potka_core.catalog.scenario import Scenario
 from potka_core.catalog.steps import Probe, Step
 from potka_core.catalog.taxonomy import NONE, UNKNOWN
@@ -232,6 +257,28 @@ class Finding:
     path: str
     rule: str
     message: str
+
+
+@dataclass(frozen=True)
+class ToolView:
+    """What the lint knows of one tool of the tool registry.
+
+    Attributes:
+        mutating: Whether the tool changes its target.
+        forbidden: Whether every call of the tool is denied.
+        categories: The labels the tool names as the diagnoses it fits.
+        arguments: The names of its arguments.
+        problem: For a name and a value: what is wrong with the value by
+            the rules of the argument of that name that need no run, in
+            words that do not hold the value, or None. A name the tool has
+            not is a problem too.
+    """
+
+    mutating: bool
+    forbidden: bool
+    categories: tuple[str, ...]
+    arguments: frozenset[str]
+    problem: Callable[[str, JsonValue], str | None]
 
 
 def is_control(scenario_id: str) -> bool:
@@ -788,6 +835,59 @@ def _leakage(catalog: Catalog) -> Iterator[Finding]:
                     yield Finding(where, "leakage", f"line {line} holds {term.what}")
 
 
+def _categories(catalog: Catalog, registry: Mapping[str, ToolView]) -> Iterator[Finding]:
+    known = set(catalog.taxonomy.names())
+    for name, tool in registry.items():
+        for label in sorted(set(tool.categories) - known):
+            yield Finding(
+                TAXONOMY,
+                "categories",
+                f"the tool {name} names the label {label}, which is not in the taxonomy",
+            )
+
+
+def _action_problems(
+    tool: ToolView, args: Mapping[str, JsonValue], blueprint: Blueprint | None
+) -> Iterator[str]:
+    """What is wrong with the arguments of an action that names TOOL."""
+    for name, value in sorted(args.items()):
+        if name not in tool.arguments:
+            # A key is shown when it has the form of an argument's name, and no other text.
+            named = name if re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", name) else "of that name"
+            yield f"has no argument {named}"
+        elif tree_placeholders(value):
+            continue
+        else:
+            given = render(value, {})
+            problem = tool.problem(name, given)
+            if problem is not None:
+                yield f"{name}: {problem}"
+            # A blueprint that is missing is the rule blueprint's finding.
+            elif name == "node" and blueprint is not None and blueprint.node(str(given)) is None:
+                yield "node: is no node of the scenario's blueprint"
+
+
+def _actions(catalog: Catalog, registry: Mapping[str, ToolView]) -> Iterator[Finding]:
+    for version in catalog.scenarios:
+        truth = version.ground_truth
+        blueprint = catalog.blueprints.get(version.scenario.blueprint)
+        for place, action in (
+            *((f"acceptable.{at}", one) for at, one in enumerate(truth.actions.acceptable)),
+            *((f"then_required.{at}", one) for at, one in enumerate(truth.actions.then_required)),
+            *((f"harmful.{at}", one) for at, one in enumerate(truth.actions.harmful)),
+        ):
+            tool = registry.get(action.tool)
+            if tool is None:
+                problems = ["is no tool of the tool registry"]
+            elif tool.forbidden or not tool.mutating:
+                kind = "forbidden" if tool.forbidden else "read-only"
+                problems = [f"is {kind}: an action is a call that changes its target"]
+            else:
+                problems = list(_action_problems(tool, action.args, blueprint))
+            for problem in problems:
+                yield Finding(_truth(version), "actions", f"{place}: {action.tool} {problem}")
+
+
 RULES: tuple[Callable[[Catalog], Iterator[Finding]], ...] = (
     _split,
     _blueprint,
@@ -809,13 +909,21 @@ TABLE_RULES: tuple[Callable[[Catalog, GoldenImages], Iterator[Finding]], ...] = 
     _isolation,
     _available,
 )
+# The rules that compare the catalog with the tool registry.
+REGISTRY_RULES: tuple[Callable[[Catalog, Mapping[str, ToolView]], Iterator[Finding]], ...] = (
+    _categories,
+    _actions,
+)
 
 
-def lint_catalog(catalog: Catalog, table: GoldenImages) -> list[Finding]:
+def lint_catalog(
+    catalog: Catalog, registry: Mapping[str, ToolView], table: GoldenImages
+) -> list[Finding]:
     """Every finding of the rules in a loaded catalog.
 
     Args:
         catalog: The catalog.
+        registry: The tools of the tool registry by name, as the lint sees them.
         table: The golden images table.
 
     Returns:
@@ -824,14 +932,19 @@ def lint_catalog(catalog: Catalog, table: GoldenImages) -> list[Finding]:
     """
     found = {finding for rule in RULES for finding in rule(catalog)}
     found |= {finding for rule in TABLE_RULES for finding in rule(catalog, table)}
+    found |= {finding for rule in REGISTRY_RULES for finding in rule(catalog, registry)}
     return sorted(found)
 
 
-def lint(root: Path, table: GoldenImages | None = None) -> list[Finding]:
+def lint(
+    root: Path, registry: Mapping[str, ToolView], table: GoldenImages | None = None
+) -> list[Finding]:
     """Load the catalog checkout at ROOT and check it.
 
     Args:
         root: The catalog's root.
+        registry: The tools of the tool registry by name, as the lint sees
+            them. The lint reads no registry itself: its caller does.
         table: The golden images table; None for the release's own
             (`potka_core.images.load_table`).
 
@@ -850,4 +963,4 @@ def lint(root: Path, table: GoldenImages | None = None) -> list[Finding]:
         catalog = load_catalog(root)
     except CatalogError as exc:
         return sorted({Finding(path, "format", reason) for path, reason in exc.problems})
-    return lint_catalog(catalog, table)
+    return lint_catalog(catalog, registry, table)

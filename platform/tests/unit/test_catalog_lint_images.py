@@ -18,6 +18,7 @@ from potka_core.catalog.lint import LOAD_PRIMITIVES, PRIMITIVES, lint, lint_cata
 from potka_core.catalog.loader import load_catalog
 from potka_core.images import GoldenImages, alias_segment, load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
+from potka_testing.tool_views import TOOLS
 from pydantic import ValidationError
 
 WEB = "blueprints/fixture-web.yaml"
@@ -56,8 +57,24 @@ def table(change: Callable[[dict[str, Any]], object] | None = None) -> GoldenIma
     return GoldenImages.model_validate_json(json.dumps(data), strict=True)
 
 
+def no_web(version: int) -> list[tuple[str, str, str]]:
+    """The findings for the actions of FIXTURE-001 on a blueprint without the node web."""
+    return [
+        (
+            f"scenarios/FIXTURE-001/{version}/ground_truth.yaml",
+            "actions",
+            f"{place}: {tool} node: is no node of the scenario's blueprint",
+        )
+        for place, tool in (
+            ("acceptable.0", "apply_config_patch"),
+            ("harmful.0", "stop_service"),
+            ("then_required.0", "start_service"),
+        )
+    ]
+
+
 def found(root: Path, images: GoldenImages | None = None) -> list[tuple[str, str, str]]:
-    findings = lint(root, images)
+    findings = lint(root, TOOLS, images)
     assert findings == sorted(set(findings))
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
@@ -70,9 +87,9 @@ def messages(root: Path, rule: str, images: GoldenImages | None = None) -> list[
 def test_the_fixture_catalog_passes_with_the_release_s_table_and_with_one_given(
     catalog: Path,
 ) -> None:
-    assert lint(catalog) == []
-    assert lint(catalog, load_table()) == []
-    assert lint_catalog(load_catalog(catalog), table()) == []
+    assert lint(catalog, TOOLS) == []
+    assert lint(catalog, TOOLS, load_table()) == []
+    assert lint_catalog(load_catalog(catalog), TOOLS, table()) == []
     assert load_table().blueprint("web-nginx-flask", GOLDEN) is not None
     assert load_table().blueprint("web-nginx-flask", OTHER) is None
 
@@ -258,7 +275,8 @@ def test_a_golden_image_the_table_does_not_list_has_no_type(catalog: Path) -> No
     edit_yaml(catalog, ONE, lambda d: d.update(isolation="vm", blueprint="fixture-store"))
     edit_yaml(catalog, STORE, lambda d: d["nodes"][0]["golden"].update(version=OTHER))
     assert found(catalog) == [
-        not_golden(STORE, "the node db", f"it lists pg-primary at the version {GOLDEN}")
+        not_golden(STORE, "the node db", f"it lists pg-primary at the version {GOLDEN}"),
+        *no_web(1),
     ]
     edit_yaml(catalog, ONE, lambda d: d.update(blueprint="gone"))
     assert [rule for _, rule, _ in found(catalog)] == ["golden", "blueprint"]
@@ -759,9 +777,9 @@ def test_a_scenario_counts_as_its_newest_version_has_it(catalog: Path) -> None:
         d["inject"][2]["params"] = dict(PARALLEL)
 
     edit_yaml(catalog, two, moved)
-    assert found(catalog) == [reaches("proc.cpu_hog", 1, 1)]
+    assert found(catalog) == [reaches("proc.cpu_hog", 1, 1), *no_web(2)]
     add(catalog, TWO, "inject", step("proc.cpu_hog", **PARALLEL))
-    assert found(catalog) == [reaches("proc.cpu_hog", 1, 1)]
+    assert found(catalog) == [reaches("proc.cpu_hog", 1, 1), *no_web(2)]
     edit_yaml(catalog, two, lambda d: d.update(blueprint="fixture-web"))
     edit_yaml(catalog, two, lambda d: d["inject"][2].update(params=dict(WORKERS)))
     assert found(catalog) == []
@@ -1239,8 +1257,8 @@ def test_without_a_table_given_the_release_s_must_be_readable(
         raise FileNotFoundError(2, "No such file or directory", "golden-images.json")
 
     monkeypatch.setattr(lint_module, "load_table", missing)
-    assert lint(catalog, table()) == []
+    assert lint(catalog, TOOLS, table()) == []
     with pytest.raises(FileNotFoundError):
-        lint(catalog)
+        lint(catalog, TOOLS)
     with pytest.raises(FileNotFoundError):
-        lint(catalog / "no-catalog")
+        lint(catalog / "no-catalog", TOOLS)

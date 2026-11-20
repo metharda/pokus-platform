@@ -42,7 +42,7 @@ def test_the_repository_s_command_path_holds_no_shell() -> None:
     packages = ROOT / "platform" / "packages"
     there = [name for name in command_path.PACKAGES if (packages / name).is_dir()]
     files = sum(1 for name in there for _ in (packages / name / "src").rglob("*.py"))
-    assert files >= 18
+    assert files >= 19
     assert outcome.lines == [
         f"{files} file(s) of 5 package(s) on the command path: no shell"
         " (not there: potka-primitives)"

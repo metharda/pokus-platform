@@ -9,11 +9,13 @@ standard output.
 
 Some rules compare the catalog with the golden images table of the
 release the command is installed in (``infra-data/golden-images.json``);
-``--infra-data DIR`` reads the table from another directory.
+``--infra-data DIR`` reads the table from another directory. Others
+compare it with the tool registry of that release (``tools/registry``);
+``--tools DIR`` reads the registry in another directory.
 
 Exit status: 0 when the catalog has no finding, 1 when it has (a path that
 is missing or is no catalog is a finding), 2 when the command line is not
-understood or the golden images table cannot be read.
+understood or the golden images table or the tool registry cannot be read.
 """
 
 from __future__ import annotations
@@ -25,8 +27,55 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
-from potka_core.catalog.lint import lint
+from potka_core.catalog.lint import ToolView, lint
 from potka_core.images import TABLE, load_table
+from potka_tools.registry import FORBIDDEN, REGISTRY, Registry, RegistryError, Tool, load_registry
+from potka_tools.template import standalone
+from potka_tools.values import below, normalize
+from pydantic import JsonValue
+
+# What is wrong with a value for a tool's argument, as a finding says it.
+_SAID = {
+    "wrong_type": "is not of the argument's type",
+    "not_allowed": "is not one of the argument's values",
+    "out_of_range": "is not within the argument's bounds",
+    "bad_form": "has not the argument's form",
+}
+
+
+def _view(tool: Tool) -> ToolView:
+    templates = [said.argv for said in (tool.command, tool.post_check) if said is not None]
+    alone = frozenset[str]().union(*(standalone(template) for template in templates))
+
+    def problem(name: str, value: JsonValue) -> str | None:
+        arg = tool.args.get(name)
+        if arg is None:
+            return "is no argument of the tool"
+        code = arg.problem(value)
+        if code is not None:
+            return _SAID[code]
+        if arg.within is not None:
+            normal = normalize(str(value))
+            if normal is None or not below(normal, arg.within):
+                return "is not below a root the tool allows"
+        # A value that is a whole element of the tool's command: no call can give one
+        # that would read as an option.
+        if name in alone and str(value).startswith("-"):
+            return "begins with a dash where the tool's command takes a whole word"
+        return None
+
+    return ToolView(
+        mutating=tool.mutating,
+        forbidden=tool.risk == FORBIDDEN,
+        categories=tool.applicable_categories,
+        arguments=frozenset(tool.args),
+        problem=problem,
+    )
+
+
+def tool_views(registry: Registry) -> dict[str, ToolView]:
+    """The tools of REGISTRY as the catalog lint sees them, by name."""
+    return {tool.name: _view(tool) for tool in registry.tools}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -44,7 +93,7 @@ def _parser() -> argparse.ArgumentParser:
             " once every file has its form, what the files say about each other. Exit"
             " status: 0 without a finding, 1 with findings (a path that is no catalog is"
             " one), 2 for a command line that is not understood or a golden images table"
-            " that cannot be read."
+            " or a tool registry that cannot be read."
         ),
     )
     lint_parser.add_argument(
@@ -63,6 +112,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="DIR",
         help=f"the directory that holds {TABLE.name} (default: the release's {TABLE.parent}/)",
+    )
+    lint_parser.add_argument(
+        "--tools",
+        type=Path,
+        metavar="DIR",
+        help=f"the tool registry's directory (default: the release's {REGISTRY}/)",
     )
     return parser
 
@@ -89,7 +144,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"potka: the golden images table ({TABLE.name}) cannot be read: {reason}\n"
         )
         return 2
-    findings = lint(args.path, table)
+    try:
+        registry = load_registry(args.tools)
+    except RegistryError as exc:
+        sys.stderr.write("potka: the tool registry cannot be read:\n")
+        for path, reason in exc.problems:
+            sys.stderr.write(f"  {path}: {reason}\n")
+        return 2
+    findings = lint(args.path, tool_views(registry), table)
     if args.json:
         sys.stdout.write(json.dumps({"findings": [asdict(f) for f in findings]}, sort_keys=True))
         sys.stdout.write("\n")

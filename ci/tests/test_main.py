@@ -9,7 +9,7 @@ import pytest
 from conftest import OTHER, Repo
 
 from potka_ci import __main__ as cli
-from potka_ci import commits, gate, privacy, references
+from potka_ci import command_path, commits, gate, privacy, references
 from potka_ci.outcome import Outcome
 from potka_ci.push import InputError, Push, push_inputs
 
@@ -151,6 +151,25 @@ def test_a_hostile_branch_name_reaches_the_privacy_scan_as_plain_data(
         f"privacy: 0 file(s) and 1 commit(s) of origin/main..{head} (branch {name}) scanned\n"
     )
     assert not [m for m in markers if m.exists()]
+
+
+def test_the_command_path_check_reads_this_repository(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["command-path"]) == 0
+    out, err = capsys.readouterr()
+    assert out.endswith("on the command path: no shell (not there: potka-primitives)\n")
+    assert (out.count("\n"), err) == (1, "")
+    calls: list[Path] = []
+
+    def found(root: Path) -> Outcome:
+        calls.append(root)
+        return Outcome("failed", ["a/main.py:1: imports subprocess"])
+
+    monkeypatch.setattr(command_path, "run", found)
+    assert cli.main(["command-path"]) == 1
+    assert calls == [cli.ROOT]
+    assert capsys.readouterr() == ("a/main.py:1: imports subprocess\n", "")
 
 
 def test_the_command_line_takes_no_range_arguments(capsys: pytest.CaptureFixture[str]) -> None:

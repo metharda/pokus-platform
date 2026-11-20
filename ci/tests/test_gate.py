@@ -5,7 +5,17 @@ from pathlib import Path
 import pytest
 from conftest import Repo
 
-from potka_ci import build, commits, contract, gate, generated, privacy, references, todos
+from potka_ci import (
+    build,
+    command_path,
+    commits,
+    contract,
+    gate,
+    generated,
+    privacy,
+    references,
+    todos,
+)
 from potka_ci.outcome import Outcome
 
 
@@ -16,6 +26,8 @@ def fixed(outcome: Outcome) -> object:
 TOOL_ENVS: list[dict[str, str] | None] = []
 GENERATED_INFRA: list[Path | None] = []
 GENERATED_INCUS: list[Path | None] = []
+COMMAND_PATH: list[Path] = []
+NO_SHELL = "3 file(s) of 1 package(s) on the command path: no shell"
 NOT_COMPARED = "the extract was not compared with a fresh extract: no files of Incus"
 
 
@@ -39,6 +51,11 @@ def steps(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
             return Outcome("skipped", [NOT_COMPARED])
         return Outcome("passed", ["the extract matches"])
 
+    def no_shell(root: Path) -> Outcome:
+        COMMAND_PATH.append(root)
+        return Outcome("passed", [NO_SHELL])
+
+    monkeypatch.setattr(command_path, "run", no_shell)
     monkeypatch.setattr(generated, "run", generated_run)
     monkeypatch.setattr(generated, "extract", extract)
     monkeypatch.setattr(contract, "run", fixed(Outcome("skipped", ["no checkout"])))
@@ -55,8 +72,8 @@ def test_the_summary_line_and_what_follows_it(repo: Repo, steps: pytest.MonkeyPa
     ok = gate.run(repo.path, None, printer=lines.append)
     assert ok is False
     assert lines == [
-        "gate: 7 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
-        " build), 1 warnings (14 steps; pytest: 12 passed)",
+        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
+        " build), 1 warnings (15 steps; pytest: 12 passed)",
         "skipped: actionlint: no .github/workflows/ci.yml",
         "skipped: shellcheck: no shell script (tests/*/*.sh)",
         f"skipped: incus-extract: {NOT_COMPARED}",
@@ -90,14 +107,14 @@ def test_the_generated_step_is_skipped_or_fails_as_its_check_says(
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append, incus=tmp_path) is False
     assert lines[0] == (
-        "gate: 7 passed, 1 failed, 5 skipped (actionlint, shellcheck, generated, contract, build),"
-        " 1 warnings (14 steps; pytest: 12 passed)"
+        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, generated, contract, build),"
+        " 1 warnings (15 steps; pytest: 12 passed)"
     )
     assert f"skipped: generated: {not_compared}" in lines
     steps.setattr(generated, "run", fixed(Outcome("failed", ["a.schema.json: differs"])))
     lines.clear()
     assert gate.run(repo.path, None, printer=lines.append, incus=tmp_path) is False
-    assert lines[0].startswith("gate: 7 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
+    assert lines[0].startswith("gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
     assert lines[lines.index("--- generated: failed") + 1] == "a.schema.json: differs"
 
 
@@ -107,7 +124,7 @@ def test_without_incus_s_files_only_the_extract_s_step_is_skipped(
     lines: list[str] = []
     gate.run(repo.path, tmp_path / "infra", verbose=True, printer=lines.append)
     assert lines[0].startswith(
-        "gate: 7 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
+        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
     )
     # The other generated files were compared and their step passed.
     assert lines[lines.index("--- generated: passed") + 1] == "4 generated file(s)"
@@ -115,14 +132,14 @@ def test_without_incus_s_files_only_the_extract_s_step_is_skipped(
     lines.clear()
     gate.run(repo.path, tmp_path / "infra", verbose=True, printer=lines.append, incus=tmp_path)
     assert lines[0].startswith(
-        "gate: 8 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract,"
+        "gate: 9 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract,"
     )
     assert lines[lines.index("--- incus-extract: passed") + 1] == "the extract matches"
     # A difference in the extract fails its own step and no other.
     steps.setattr(generated, "extract", fixed(Outcome("failed", ["api.json: differs"])))
     lines.clear()
     assert gate.run(repo.path, tmp_path / "infra", printer=lines.append, incus=tmp_path) is False
-    assert lines[0].startswith("gate: 7 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
+    assert lines[0].startswith("gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
     assert lines[lines.index("--- incus-extract: failed") + 1] == "api.json: differs"
 
 
@@ -133,6 +150,22 @@ def test_verbose_prints_every_step(repo: Repo, steps: pytest.MonkeyPatch) -> Non
     assert "ruff ok" in lines
     assert "--- commits: passed" in lines
     assert lines[lines.index("--- generated: passed") + 1] == "4 generated file(s)"
+    assert lines[lines.index("--- command-path: passed") + 1] == NO_SHELL
+
+
+def test_a_shell_on_the_command_path_fails_the_gate(repo: Repo, steps: pytest.MonkeyPatch) -> None:
+    COMMAND_PATH.clear()
+    lines: list[str] = []
+    gate.run(repo.path, None, printer=lines.append)
+    assert COMMAND_PATH == [repo.path]
+    assert "--- command-path: failed" not in lines
+    found = "platform/packages/potka-tools/src/potka_tools/render.py:3: imports subprocess"
+    steps.setattr(command_path, "run", fixed(Outcome("failed", [found])))
+    steps.setattr(references, "run", fixed(Outcome("passed", ["references: 0"])))
+    lines.clear()
+    assert gate.run(repo.path, None, printer=lines.append) is False
+    assert lines[0].startswith("gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck,")
+    assert lines[lines.index("--- command-path: failed") + 1] == found
 
 
 def test_a_missing_tool_fails(tmp_path: Path) -> None:
@@ -151,7 +184,7 @@ def test_a_step_that_raises_fails_and_the_gate_goes_on(
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append) is False
     assert lines[0].startswith(
-        "gate: 7 passed, 2 failed, 4 skipped (actionlint, shellcheck, incus-extract, contract)"
+        "gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck, incus-extract, contract)"
     )
     assert "--- build: failed" in lines
     assert lines[-1] == "a.md:1:1: plan-step"

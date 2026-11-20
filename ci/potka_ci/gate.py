@@ -26,7 +26,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from potka_ci import build, commits, contract, generated, privacy, references, todos
+from potka_ci import (
+    build,
+    command_path,
+    commits,
+    contract,
+    generated,
+    privacy,
+    references,
+    todos,
+)
 from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
@@ -186,6 +195,7 @@ def run(
                 tool("pytest", ["-q", "-p", "no:cacheprovider"], platform, tests_env)
             ),
         ),
+        ("command-path", lambda: command_path.run(root)),
         ("generated", lambda: generated.run(root, infra)),
         ("incus-extract", lambda: generated.extract(root, incus)),
         ("contract", lambda: contract.run(root, infra)),

@@ -21,6 +21,7 @@ from potka_core.catalog.lint import (
 from potka_core.catalog.loader import load_catalog
 from potka_core.images import load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
+from potka_testing.tool_views import TOOLS
 
 WEB = "blueprints/fixture-web.yaml"
 STORE = "blueprints/fixture-store.yaml"
@@ -52,7 +53,7 @@ def catalog(tmp_path: Path) -> Path:
 
 
 def found(root: Path) -> list[tuple[str, str, str]]:
-    findings = lint(root)
+    findings = lint(root, TOOLS)
     assert findings == sorted(set(findings))
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
@@ -66,9 +67,9 @@ def new_version(root: Path, scenario: str, version: int, **changes: Any) -> str:
 
 
 def test_the_fixture_catalog_has_no_finding(catalog: Path) -> None:
-    assert lint(FIXTURE_CATALOG) == []
-    assert lint(catalog) == []
-    assert lint_catalog(load_catalog(catalog), load_table()) == []
+    assert lint(FIXTURE_CATALOG, TOOLS) == []
+    assert lint(catalog, TOOLS) == []
+    assert lint_catalog(load_catalog(catalog), TOOLS, load_table()) == []
 
 
 def test_the_fault_primitives_and_the_probes() -> None:
@@ -161,7 +162,15 @@ def test_the_versions_of_a_scenario_share_its_split(catalog: Path) -> None:
 
 def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web"))
-    assert found(catalog) == []
+    # The blueprint is one of the catalog; what its actions name there is another rule's.
+    assert found(catalog) == [
+        (
+            "scenarios/FIXTURE-002/1/ground_truth.yaml",
+            "actions",
+            f"{place}: {tool} node: is no node of the scenario's blueprint",
+        )
+        for place, tool in (("acceptable.0", "remove_file"), ("harmful.0", "stop_service"))
+    ]
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web-app"))
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", lambda d: d.update(blueprint="web"))
     assert found(catalog) == [
@@ -256,7 +265,7 @@ def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> Non
         d["verification"][0]["params"]["note"] = "${defect} in ${section}, 5 $$"
         d["collateral"][0]["params"]["paths"].append("/srv/${section}")
         for kind in ("acceptable", "then_required", "harmful"):
-            d["actions"][kind][0]["args"]["note"] = "${section}"
+            d["actions"][kind][0]["args"]["node"] = "${section}"
 
     edit_yaml(catalog, f"{ONE}/ground_truth.yaml", declared)
     assert found(catalog) == []
@@ -266,7 +275,7 @@ def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> Non
         d["verification"][0]["params"]["note"] = "${checked}"
         d["collateral"][0]["params"]["paths"].append("/srv/${kept}/${section}")
         for kind in ("acceptable", "then_required", "harmful"):
-            d["actions"][kind][0]["args"]["note"] = "${" + kind + "}"
+            d["actions"][kind][0]["args"]["node"] = "${" + kind + "}"
 
     edit_yaml(catalog, f"{ONE}/ground_truth.yaml", undeclared)
     edit_yaml(
@@ -420,6 +429,23 @@ def test_every_label_of_a_ground_truth_is_in_the_taxonomy(catalog: Path) -> None
             "scenarios/FIXTURE-002/1/ground_truth.yaml",
             "labels",
             "the label resource.disk_full is not in the taxonomy",
+        ),
+        # The tools of the release's registry that name the label miss it too.
+        *(
+            (
+                "taxonomy.yaml",
+                "categories",
+                f"the tool {name} names the label resource.disk_full, which is not in the taxonomy",
+            )
+            for name in (
+                "docker_remove_container",
+                "remove_file",
+                "restart_service",
+                "rotate_logs",
+                "start_service",
+                "stop_service",
+                "vacuum_journal",
+            )
         ),
     ]
 

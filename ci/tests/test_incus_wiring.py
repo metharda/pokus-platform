@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,7 +28,13 @@ FETCH = (
     " INCUS=<path> fetches both at the commit that"
     " platform/tests/fixtures/incus-api/source.json names"
 )
-FILES = "5 generated file(s) match a fresh generation"
+FILES = "10 generated file(s) match a fresh generation"
+
+
+def with_tools(root: Path) -> None:
+    """Give the tree ROOT this repository's tool registry and what it is compiled to."""
+    shutil.copytree(ROOT / generated.REGISTRY, root / generated.REGISTRY)
+    assert generated.write(root, "tools").status == "passed"
 
 
 def test_the_extract_is_compared_with_a_fresh_one_made_from_incus_s_files(tmp_path: Path) -> None:
@@ -71,6 +78,7 @@ def test_an_extract_that_cannot_be_read_is_failed_with_incus_s_files_and_without
 def test_without_incus_s_files_only_the_extract_s_comparison_is_skipped(tmp_path: Path) -> None:
     root, incus, _ = tree(tmp_path)
     assert generated.write(root, "schemas").status == "passed"
+    with_tools(root)
     generated.write(root, "incus-api", incus=incus)
     (root / incus_api.README).write_text("where it comes from\n", encoding="utf-8")
     # The skipped comparison names the extract.
@@ -80,7 +88,7 @@ def test_without_incus_s_files_only_the_extract_s_comparison_is_skipped(tmp_path
     assert (outcome.status, outcome.lines) == (
         "skipped",
         [
-            f"4 generated file(s) match a fresh generation; {TABLE} was not compared:"
+            f"9 generated file(s) match a fresh generation; {TABLE} was not compared:"
             " no pokus-infrastructure checkout (INFRA=<path>)"
         ],
     )
@@ -159,6 +167,7 @@ def test_the_command_runs_both_checks_as_they_are(
     source = tmp_path / "incus-tree" / "root" / incus_api.SOURCE
     (root / incus_api.DIRECTORY).mkdir(parents=True)
     (root / incus_api.SOURCE).write_bytes(source.read_bytes())
+    with_tools(root)
     for kind in ("schemas", "golden-images", "incus-api"):
         assert generated.write(root, kind, repo.path, incus).status == "passed"
     monkeypatch.setattr(cli, "ROOT", root)
