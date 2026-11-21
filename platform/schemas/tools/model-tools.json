@@ -754,7 +754,7 @@
   },
   {
     "function": {
-      "description": "Check nginx's configuration on a node without loading it, and show what nginx says.",
+      "description": "Check nginx's configuration on a node without loading it, and show what nginx says. nginx -t may create or change files in nginx's own runtime directories.",
       "name": "nginx_test_config",
       "parameters": {
         "additionalProperties": false,

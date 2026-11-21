@@ -10,7 +10,7 @@ last_verified: {date: null, rc: null, by: null}
 
 # The tools a model may call
 
-Version 1 of the tool registry, content hash `40b60a787683c95b2a85f7425ef1430ec146bbbcc0c9c7d653810da80bd8e706`.
+Version 1 of the tool registry, content hash `df636411c5bd3c0c6a38558310f6896e0c077bedb78386badb03e38c3ebe68fa`.
 
 A tool runs one command, element by element as its entry writes it and never through a shell, or is carried out by a handler of the executing service. Some tools run a second command afterwards, which shows what the first one did. In a command, a name in braces is the argument of that name, and an element written as `{"literal": ...}` is taken as it is, braces and all.
 
@@ -191,7 +191,7 @@ Show a node's network interfaces with their state and addresses.
 
 ### `nginx_test_config`
 
-Check nginx's configuration on a node without loading it, and show what nginx says.
+Check nginx's configuration on a node without loading it, and show what nginx says. nginx -t may create or change files in nginx's own runtime directories.
 
 - Risk: read. Version of the entry: 1.
 - Runs in the node: `["nginx", "-t"]`. Ended after 15 s and killed 5 s later; at most 8192 bytes of each output stream are given back.

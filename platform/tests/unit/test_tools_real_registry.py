@@ -120,6 +120,18 @@ def test_every_tool_and_every_argument_says_to_a_model_what_it_is() -> None:
             assert values.printable(arg.description), (tool.name, name)
 
 
+def test_the_configuration_check_says_what_it_may_leave_behind() -> None:
+    # The program opens the files its configuration names and may make those that are
+    # missing, though the tool is read-only: a model is told so.
+    described = REGISTRY.tool("nginx_test_config")
+    assert described is not None
+    assert (described.risk, described.mutating, described.version) == ("read", False, 1)
+    assert described.description.endswith(
+        " nginx -t may create or change files in nginx's own runtime directories."
+    )
+    assert REGISTRY.version == 1
+
+
 def test_every_category_is_a_label_of_the_fixture_taxonomy() -> None:
     labels = set(load_catalog(PLATFORM / "tests" / "fixtures" / "catalog").taxonomy.names())
     named = {label for tool in REGISTRY.tools for label in tool.applicable_categories}
