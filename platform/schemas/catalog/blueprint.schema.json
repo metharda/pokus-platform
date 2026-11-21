@@ -252,7 +252,7 @@
               "type": "null"
             }
           ],
-          "description": "The command and its arguments, run after a patch; null for no check.",
+          "description": "The command and its arguments, run after a patch; null for no check. Never a shell's.",
           "title": "Validator"
         }
       },

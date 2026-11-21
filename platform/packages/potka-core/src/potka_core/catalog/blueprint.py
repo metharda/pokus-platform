@@ -28,6 +28,7 @@ from pydantic import AfterValidator, Field, model_validator
 from potka_core.catalog.base import Count, Model, Name, Text, plain
 from potka_core.catalog.parameters import Scalar
 from potka_core.catalog.steps import Probe
+from potka_core.shells import is_shell
 
 
 def _path(value: str) -> str:
@@ -72,6 +73,13 @@ def _twice(what: str, values: tuple[str, ...]) -> None:
         raise ValueError(f"{what} given twice: {', '.join(twice)}")
 
 
+def _no_shell(words: tuple[str, ...]) -> tuple[str, ...]:
+    # A validator runs in a node like a tool's command: a shell would read what it is given.
+    if any(is_shell(word) for word in words):
+        raise ValueError("a validator is a program and its arguments, never a shell's")
+    return words
+
+
 class Golden(Model):
     """A golden image, by the infrastructure's blueprint and its version."""
 
@@ -108,8 +116,8 @@ class Patchable(Model):
 
     path: AbsolutePath
     """A file, or a directory for every file below it."""
-    validator: Annotated[tuple[Text, ...], Field(min_length=1)] | None
-    """The command and its arguments, run after a patch; null for no check."""
+    validator: Annotated[tuple[Text, ...], Field(min_length=1), AfterValidator(_no_shell)] | None
+    """The command and its arguments, run after a patch; null for no check. Never a shell's."""
 
 
 class Endpoint(Model):

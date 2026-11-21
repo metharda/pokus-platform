@@ -14,6 +14,7 @@ from potka_core.catalog.lint import (
     PRIMITIVES,
     PROBES,
     Finding,
+    Library,
     is_control,
     lint,
     lint_catalog,
@@ -21,7 +22,7 @@ from potka_core.catalog.lint import (
 from potka_core.catalog.loader import load_catalog
 from potka_core.images import load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
-from potka_testing.tool_views import TOOLS
+from potka_testing.tool_views import LIBRARY, TOOLS
 
 WEB = "blueprints/fixture-web.yaml"
 STORE = "blueprints/fixture-store.yaml"
@@ -52,8 +53,8 @@ def catalog(tmp_path: Path) -> Path:
     return copy_fixture(tmp_path / "catalog")
 
 
-def found(root: Path) -> list[tuple[str, str, str]]:
-    findings = lint(root, TOOLS)
+def found(root: Path, library: Library = LIBRARY) -> list[tuple[str, str, str]]:
+    findings = lint(root, TOOLS, library)
     assert findings == sorted(set(findings))
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
@@ -67,9 +68,9 @@ def new_version(root: Path, scenario: str, version: int, **changes: Any) -> str:
 
 
 def test_the_fixture_catalog_has_no_finding(catalog: Path) -> None:
-    assert lint(FIXTURE_CATALOG, TOOLS) == []
-    assert lint(catalog, TOOLS) == []
-    assert lint_catalog(load_catalog(catalog), TOOLS, load_table()) == []
+    assert lint(FIXTURE_CATALOG, TOOLS, LIBRARY) == []
+    assert lint(catalog, TOOLS, LIBRARY) == []
+    assert lint_catalog(load_catalog(catalog), TOOLS, LIBRARY, load_table()) == []
 
 
 def test_the_fault_primitives_and_the_probes() -> None:
@@ -237,10 +238,18 @@ def test_every_primitive_and_probe_name_is_accepted(catalog: Path) -> None:
 
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", scenario)
     # Every name is known. What else such a step lacks is other rules' to find: a tool no
-    # golden image carries, and the primitives that work through a background component.
+    # golden image carries, the primitives that work through a background component, and
+    # those that need what no golden image has. The steps' parameters, which are none, are
+    # the rule params' to find: the library is left out here.
     path = f"{CONTROL}/scenario.yaml"
+    unsupported = ("app.bad_config", "dns.break_resolver", "dns.wrong_record", "docker.crashloop")
     expected = []
     for index, name in enumerate(sorted(PRIMITIVES)):
+        if name in unsupported:
+            reason = "no golden image has what it needs yet"
+            expected.append(
+                (path, "available", f"setup.{index}: {name} is not available: {reason}")
+            )
         if name == "net.block_port":
             reason = "not every golden image carries nftables"
             expected.append(
@@ -255,8 +264,8 @@ def test_every_primitive_and_probe_name_is_accepted(catalog: Path) -> None:
                 "it must name its node, component, setting outright, as text without a parameter"
             )
             expected.append((path, "load", f"setup.{index}: {name}: {unnamed}"))
-    assert len(expected) == 11
-    assert found(catalog) == sorted(expected)
+    assert len(expected) == 15
+    assert found(catalog, Library({}, {})) == sorted(expected)
 
 
 def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> None:

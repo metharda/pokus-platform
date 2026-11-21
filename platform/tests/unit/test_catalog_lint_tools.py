@@ -9,7 +9,7 @@ import pytest
 from potka_cli.main import tool_views
 from potka_core.catalog.lint import ToolView, lint
 from potka_testing.fixture_catalog import copy_fixture, edit_yaml
-from potka_testing.tool_views import TOOLS
+from potka_testing.tool_views import LIBRARY, TOOLS
 from potka_testing.tools import forbidden, remove_file, restart_service, tail_journal, tool
 from potka_tools.registry import Registry, load_registry
 
@@ -23,7 +23,7 @@ def catalog(tmp_path: Path) -> Path:
 
 
 def found(root: Path, registry: dict[str, ToolView] | None = None) -> list[tuple[str, str, str]]:
-    findings = lint(root, TOOLS if registry is None else registry)
+    findings = lint(root, TOOLS if registry is None else registry, LIBRARY)
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
 

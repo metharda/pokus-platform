@@ -22,36 +22,13 @@ import re
 from dataclasses import dataclass
 from typing import Annotated, Final
 
+from potka_core.shells import is_shell
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from potka_tools.values import printable
 
 NAME: Final = r"[a-z][a-z0-9_]{0,62}"
 _FILLED_RE: Final = re.compile(rf"([^{{}}]*)\{{({NAME})\}}")
-# The shells: programs made to read a command line. The list is of shells only; a program
-# that can run a text it is given (an interpreter with an option for it) is not on it.
-SHELLS: Final = frozenset(
-    {
-        "ash",
-        "bash",
-        "busybox",
-        "csh",
-        "dash",
-        "fish",
-        "hush",
-        "ksh",
-        "lksh",
-        "mksh",
-        "pdksh",
-        "posh",
-        "rbash",
-        "sash",
-        "sh",
-        "tcsh",
-        "yash",
-        "zsh",
-    }
-)
 FORMS: Final = (
     "an element is a literal, a placeholder alone or an option that ends with one"
     " placeholder; a literal with braces is marked as {literal: ...}; a placeholder is quoted"
@@ -157,7 +134,7 @@ def elements(template: tuple[str | Marked, ...]) -> tuple[Element, ...]:
     if not isinstance(template[0], str) or found[0].argument is not None:
         raise ValueError("the first element of a command, its program, is a literal")
     for one in found:
-        if one.argument is None and one.literal.rsplit("/", 1)[-1] in SHELLS:
+        if one.argument is None and is_shell(one.literal):
             raise ValueError("a command is a program and its arguments, never a shell's")
     return found
 

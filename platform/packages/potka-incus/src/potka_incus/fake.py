@@ -124,6 +124,8 @@ class FakeInstance:
         inside: Its files, root disk and commands.
         running: Whether it runs.
         logs: The recorded output of its commands, by file name.
+        measured: Whether its state says how much of its root disk is in
+            use; a test turns it off for a pool that cannot say.
     """
 
     name: str
@@ -135,6 +137,7 @@ class FakeInstance:
     inside: Inside
     running: bool = False
     logs: dict[str, bytes] = field(default_factory=dict)
+    measured: bool = True
 
 
 @dataclass(frozen=True)
@@ -503,7 +506,7 @@ class FakeIncus:
                 },
                 "network": None,
                 "disk": {root[0]: {"usage": inside.usage, "total": inside.size or 0}}
-                if root
+                if root and instance.measured
                 else None,
             }
         )

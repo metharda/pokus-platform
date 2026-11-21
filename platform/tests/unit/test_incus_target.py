@@ -349,6 +349,38 @@ def listing(names: Any) -> httpx.Response:
     return httpx.Response(200, json=sync(names).json(), headers={"X-Incus-type": "directory"})
 
 
+@pytest.mark.parametrize(
+    ("answer", "found"),
+    [
+        (raw(b"/etc/target", "symlink"), "symlink"),
+        (raw(b"", "directory"), "directory"),
+        (httpx.Response(200, content=b"x"), ""),
+    ],
+)
+def test_a_path_of_another_kind_is_an_error_that_says_what_is_there(
+    answer: httpx.Response, found: str
+) -> None:
+    script = Script().on("GET", FILES, answer, raw(b"x"))
+    client = script.client() if found else script.bare()
+    with pytest.raises(incus.WrongKind) as refused:
+        client.read_file("web", "/etc/x")
+    assert refused.value.found == found
+    # A listing of what is a file says so in the same way.
+    with pytest.raises(incus.WrongKind) as listed:
+        client.list_directory("web", "/etc/x")
+    assert listed.value.found == "file"
+    assert len(script.requests) == 2
+    assert type(listed.value) is incus.WrongKind and isinstance(listed.value, incus.IncusError)
+
+
+def test_a_file_without_its_owner_is_not_a_path_of_another_kind() -> None:
+    # Nothing says what else such a file would be, so its error names no other kind.
+    script = Script().on("GET", FILES, raw(b"x", **{"X-Incus-uid": ""}))
+    with pytest.raises(incus.IncusError) as refused:
+        script.client().read_file("web", "/etc/x")
+    assert type(refused.value) is incus.IncusError
+
+
 def test_a_directory_is_listed_and_a_file_is_not() -> None:
     script = Script().on("GET", FILES, listing(["a.conf", "b.conf"]), listing(None), raw(b"x"))
     client = script.client()

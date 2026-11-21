@@ -12,13 +12,14 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from potka_core.catalog.loader import load_catalog
+from potka_core.shells import is_shell
 from potka_testing.tool_commands import shape
 from potka_tools import values
 from potka_tools.arguments import ArgumentError, check
 from potka_tools.context import Context
 from potka_tools.registry import HANDLERS, Arg, Tool, load_registry
 from potka_tools.render import render
-from potka_tools.template import SHELLS, elements
+from potka_tools.template import elements
 
 PLATFORM = Path(__file__).resolve().parents[2]
 REGISTRY = load_registry(PLATFORM / "tools" / "registry")
@@ -163,7 +164,7 @@ def test_no_command_is_a_shell_s_and_every_program_is_named_without_a_directory(
                 continue
             written = elements(said.argv)
             programs.add(written[0].literal)
-            assert all(one.literal not in SHELLS for one in written), tool.name
+            assert not any(is_shell(one.literal) for one in written), tool.name
             # A path that is a whole element comes after "--": its program reads it as a
             # name, whatever it begins with.
             for at, one in enumerate(written):

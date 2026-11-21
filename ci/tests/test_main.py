@@ -158,7 +158,7 @@ def test_the_command_path_check_reads_this_repository(
 ) -> None:
     assert cli.main(["command-path"]) == 0
     out, err = capsys.readouterr()
-    assert out.endswith("on the command path: no shell (not there: potka-primitives)\n")
+    assert out.endswith(" of 6 package(s) on the command path: no shell\n")
     assert (out.count("\n"), err) == (1, "")
     calls: list[Path] = []
 

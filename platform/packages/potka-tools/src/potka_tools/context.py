@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
+from potka_core.shells import is_shell
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-from potka_tools.template import SHELLS
 from potka_tools.values import is_normal, printable
 
 
@@ -55,7 +55,7 @@ def _alias(value: str) -> str:
 
 def _command(words: tuple[str, ...] | None) -> tuple[str, ...] | None:
     # A validator runs in a node like a tool's command: a program and its arguments.
-    if words is not None and any(word.rsplit("/", 1)[-1] in SHELLS for word in words):
+    if words is not None and any(is_shell(word) for word in words):
         raise ValueError("a validator is a program and its arguments, never a shell's")
     return words
 

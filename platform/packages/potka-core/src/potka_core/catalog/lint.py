@@ -9,7 +9,10 @@ Some rules compare the catalog with the golden images table
 (`potka_core.images`): the infrastructure's blueprints, their versions,
 types and packages. Two compare it with the tool registry, of which the
 lint is given a view (`ToolView`): what each tool is, and what is wrong
-with a value for one of its arguments.
+with a value for one of its arguments. One compares it with the library of
+fault primitives and probes, of which the lint is given a view too
+(`StepView`): what is wrong with a step's parameters, and which package the
+step's node must carry.
 
 The findings name scenario IDs, labels of ground truths and the tools and
 arguments their actions name, and never an argument's value: they are for
@@ -64,8 +67,10 @@ The rules:
 ``available``
     Every fault primitive a scenario's ``setup`` and ``inject`` steps use
     is available: ``net.block_port`` only when every golden image carries
-    ``nftables``, and a load or exhaustion primitive (`LOAD_PRIMITIVES`)
-    only when derived images can be built (`OFFLINE_BUILD_PROFILE`).
+    ``nftables``, a load or exhaustion primitive (`LOAD_PRIMITIVES`) only
+    when derived images can be built (`OFFLINE_BUILD_PROFILE`), and a
+    primitive that needs what no golden image has yet (`UNSUPPORTED`) not
+    at all.
 ``load``
     A load or exhaustion primitive works through a background component's
     setting. Its step names, each outright and not through a parameter, a
@@ -115,6 +120,15 @@ The rules:
     its bounds and, where the tool fixes them, the roots of a path. A value
     that uses a parameter is not checked, and neither is what a value must
     be in a run (a service or a path of the node).
+``params``
+    Every step whose fault primitive or probe the library has gives
+    parameters that fit it in every instance of the scenario: with each
+    combination of the values of the scenario's parameters the step uses,
+    every value of a range among them. A step with more than
+    `MAX_COMBINATIONS` such combinations is a finding itself. The step's
+    ``node`` is a node of the scenario's blueprint, and that node's golden
+    image carries the package of the service the step acts on, where it
+    acts on one. A step whose name the library has not is not checked.
 
 A whole word is not preceded or followed by a letter, a digit or an
 underscore. A value is given outright when no string of it uses a
@@ -231,6 +245,11 @@ OFFLINE_BUILD_PROFILE: str | None = None
 # The package a primitive's tool comes from: the primitive is available only when every
 # golden image carries it, so that the tool's presence tells nothing about the fault.
 TOOLS = {"net.block_port": "nftables"}
+# Primitives that need what no golden image has yet: a container with an entrypoint
+# to break, an application with a configuration of its own, a resolver to mislead.
+UNSUPPORTED = frozenset(
+    {"app.bad_config", "dns.break_resolver", "dns.wrong_record", "docker.crashloop"}
+)
 # What names the lab or the platform.
 NAMES = ("pokus", "pinka", "potka")
 # The field names of a ground truth that are no common word.
@@ -279,6 +298,42 @@ class ToolView:
     categories: tuple[str, ...]
     arguments: frozenset[str]
     problem: Callable[[str, JsonValue], str | None]
+
+
+@dataclass(frozen=True)
+class StepView:
+    """What the lint knows of one fault primitive or probe of the library.
+
+    Attributes:
+        problem: For a step's parameters in one instance: each thing that
+            is wrong with them, in words that hold no value; nothing when
+            they fit.
+        service: The package of the service the step acts on, which the
+            golden image of the step's node must carry; None for a step
+            that acts on no service.
+    """
+
+    problem: Callable[[Mapping[str, JsonValue]], tuple[str, ...]]
+    service: str | None
+
+
+@dataclass(frozen=True)
+class Library:
+    """The library of fault primitives and probes, as the lint sees it.
+
+    Attributes:
+        primitives: The fault primitives the library has, by name.
+        probes: The probes the library has, by name.
+    """
+
+    primitives: Mapping[str, StepView]
+    probes: Mapping[str, StepView]
+
+    def view(self, step: Probe | Step) -> StepView | None:
+        """The view of what STEP names, or None when the library has it not."""
+        if isinstance(step, Step):
+            return self.primitives.get(step.primitive)
+        return self.probes.get(step.probe)
 
 
 def is_control(scenario_id: str) -> bool:
@@ -564,6 +619,13 @@ def _available(catalog: Catalog, table: GoldenImages) -> Iterator[Finding]:
                     "available",
                     f"{place}: {step.primitive} is not available: no derived image can be"
                     " built yet, so no background component runs",
+                )
+            if step.primitive in UNSUPPORTED:
+                yield Finding(
+                    _scenario(version),
+                    "available",
+                    f"{place}: {step.primitive} is not available: no golden image has what"
+                    " it needs yet",
                 )
 
 
@@ -888,6 +950,97 @@ def _actions(catalog: Catalog, registry: Mapping[str, ToolView]) -> Iterator[Fin
                 yield Finding(_truth(version), "actions", f"{place}: {action.tool} {problem}")
 
 
+def _step_problems(
+    step: Probe | Step,
+    view: StepView,
+    parameters: Mapping[str, Choice | Range],
+    blueprint: Blueprint | None,
+    table: GoldenImages,
+    whose: str,
+) -> Iterator[str]:
+    """What is wrong with the parameters of a step the library has, in every instance.
+
+    Each thing is said once, however many instances have it. A node is
+    named: it is one of the blueprint's own.
+    """
+    used = tuple(dict.fromkeys(step.placeholders()))
+    # A parameter the scenario does not declare is its model's or the rule templates'.
+    if any(name not in parameters for name in used):
+        return
+    values = [parameters[name].candidates() for name in used]
+    if math.prod(len(candidates) for candidates in values) > MAX_COMBINATIONS:
+        yield (
+            f"its parameters have more than {MAX_COMBINATIONS} combinations of values:"
+            " they cannot all be checked"
+        )
+        return
+    problems: dict[str, None] = {}
+    aliases: dict[str, None] = {}
+    for combination in product(*values):
+        given = step.render(dict(zip(used, combination, strict=True)))
+        wrong = view.problem(given)
+        problems.update(dict.fromkeys(wrong))
+        if not wrong and isinstance(given.get("node"), str):
+            aliases[str(given["node"])] = None
+    if problems:
+        yield "; ".join(sorted(problems))
+    # A blueprint that is missing is the rule blueprint's finding.
+    if blueprint is None:
+        return
+    for alias in sorted(aliases):
+        node = blueprint.node(alias)
+        if node is None:
+            yield f"node: is no node of {whose}"
+            continue
+        golden = table.blueprint(node.golden.blueprint, node.golden.version)
+        # A golden image the table does not list is the rule golden's finding.
+        if view.service is not None and golden is not None and not golden.carries(view.service):
+            yield (
+                f"the golden image of the node {alias} does not carry {view.service},"
+                " the service it acts on"
+            )
+
+
+def _params(catalog: Catalog, library: Library, table: GoldenImages) -> Iterator[Finding]:
+    for name, described in catalog.blueprints.items():
+        for place, probe in _placed(health=described.health):
+            view = library.view(probe)
+            if view is not None and isinstance(probe, Probe):
+                for problem in _step_problems(probe, view, {}, described, table, "the blueprint"):
+                    yield Finding(
+                        f"{BLUEPRINTS}/{name}.yaml", "params", f"{place}: {probe.probe}: {problem}"
+                    )
+    for version in catalog.scenarios:
+        scenario, truth = version.scenario, version.ground_truth
+        blueprint = catalog.blueprints.get(scenario.blueprint)
+        placed = (
+            *(
+                (_scenario(version), place, step)
+                for place, step in _placed(
+                    preconditions=scenario.preconditions,
+                    setup=scenario.setup,
+                    inject=scenario.inject,
+                    confirm=scenario.confirm,
+                )
+            ),
+            *(
+                (_truth(version), place, step)
+                for place, step in _placed(
+                    verification=truth.verification, collateral=truth.collateral
+                )
+            ),
+        )
+        for path, place, step in placed:
+            view = library.view(step)
+            if view is None:
+                continue
+            name = step.primitive if isinstance(step, Step) else step.probe
+            for problem in _step_problems(
+                step, view, scenario.parameters, blueprint, table, "the scenario's blueprint"
+            ):
+                yield Finding(path, "params", f"{place}: {name}: {problem}")
+
+
 RULES: tuple[Callable[[Catalog], Iterator[Finding]], ...] = (
     _split,
     _blueprint,
@@ -916,14 +1069,24 @@ REGISTRY_RULES: tuple[Callable[[Catalog, Mapping[str, ToolView]], Iterator[Findi
 )
 
 
+# The rules that compare the catalog with the library of fault primitives and probes.
+LIBRARY_RULES: tuple[Callable[[Catalog, Library, GoldenImages], Iterator[Finding]], ...] = (
+    _params,
+)
+
+
 def lint_catalog(
-    catalog: Catalog, registry: Mapping[str, ToolView], table: GoldenImages
+    catalog: Catalog,
+    registry: Mapping[str, ToolView],
+    library: Library,
+    table: GoldenImages,
 ) -> list[Finding]:
     """Every finding of the rules in a loaded catalog.
 
     Args:
         catalog: The catalog.
         registry: The tools of the tool registry by name, as the lint sees them.
+        library: The fault primitives and probes, as the lint sees them.
         table: The golden images table.
 
     Returns:
@@ -933,11 +1096,15 @@ def lint_catalog(
     found = {finding for rule in RULES for finding in rule(catalog)}
     found |= {finding for rule in TABLE_RULES for finding in rule(catalog, table)}
     found |= {finding for rule in REGISTRY_RULES for finding in rule(catalog, registry)}
+    found |= {finding for rule in LIBRARY_RULES for finding in rule(catalog, library, table)}
     return sorted(found)
 
 
 def lint(
-    root: Path, registry: Mapping[str, ToolView], table: GoldenImages | None = None
+    root: Path,
+    registry: Mapping[str, ToolView],
+    library: Library,
+    table: GoldenImages | None = None,
 ) -> list[Finding]:
     """Load the catalog checkout at ROOT and check it.
 
@@ -945,6 +1112,8 @@ def lint(
         root: The catalog's root.
         registry: The tools of the tool registry by name, as the lint sees
             them. The lint reads no registry itself: its caller does.
+        library: The fault primitives and probes, as the lint sees them.
+            The lint imports no library itself: its caller does.
         table: The golden images table; None for the release's own
             (`potka_core.images.load_table`).
 
@@ -963,4 +1132,4 @@ def lint(
         catalog = load_catalog(root)
     except CatalogError as exc:
         return sorted({Finding(path, "format", reason) for path, reason in exc.problems})
-    return lint_catalog(catalog, registry, table)
+    return lint_catalog(catalog, registry, library, table)

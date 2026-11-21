@@ -113,6 +113,23 @@ def test_a_state_holds_the_use_of_each_disk() -> None:
     assert script.asked()[0] == ("GET", "/1.0/instances/web/state", {"project": PROJECT})
 
 
+def test_a_disk_whose_use_incus_did_not_give_is_left_out_and_never_read_as_zero() -> None:
+    state = {"status": "Running", "status_code": 103, "pid": 77}
+    script = Script().on(
+        "GET",
+        "/1.0/instances/web/state",
+        sync({**state, "disk": {"root": {"usage": None, "total": 4096}, "data": {"usage": 5}}}),
+        sync({**state, "disk": {"root": {"total": 4096}}}),
+        sync({**state, "disk": {"root": {"usage": 0, "total": 4096}}}),
+    )
+    # The first two answers are in no form Incus has; the client must not make a use of them.
+    client = script.bare()
+    assert client.state("web").disk == {"data": incus.Disk(5, 0)}
+    assert client.state("web").disk == {}
+    # A use of zero that Incus did give is a use.
+    assert client.state("web").disk == {"root": incus.Disk(0, 4096)}
+
+
 def test_the_project_s_instances_are_listed_by_name() -> None:
     listed = ["/1.0/instances/web", "/1.0/instances/db?project=bench"]
     script = Script().on("GET", "/1.0/instances", sync(listed), sync([]))

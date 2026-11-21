@@ -28,6 +28,8 @@ INCUS ?=
 CATALOG ?=
 ROOT_COMMIT ?=
 VERBOSE ?=
+# The file of real-host checks that e2e-real runs.
+E2E ?= tests/e2e_real/incus_real.py
 
 ifneq ($(origin BUILD_PYTHON),undefined)
 $(error BUILD_PYTHON is read from the file ../BUILD_PYTHON only, not from the $(origin BUILD_PYTHON))
@@ -83,8 +85,8 @@ test: ## The tests of the packages and of the repository checks (INFRA=<path> fo
 	$(if $(INFRA),POTKA_INFRA="$(abspath $(INFRA))") $(RUN) pytest -q -p no:cacheprovider
 
 .PHONY: e2e-real
-e2e-real: ## The checks against a real Incus on a lab host (tests/e2e_real; never in the gate or CI)
-	$(RUN) pytest -q -s -p no:cacheprovider tests/e2e_real/incus_real.py
+e2e-real: ## The checks against a real Incus on a lab host (tests/e2e_real; never in the gate or CI; E2E=<file> for another of its files)
+	$(RUN) pytest -q -s -p no:cacheprovider $(E2E)
 
 .PHONY: schemas
 schemas: ## Write the JSON Schemas of the catalog's files and of the tool registry (schemas/) from their models

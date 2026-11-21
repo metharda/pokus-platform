@@ -224,8 +224,10 @@ def test_the_root_disk_s_configured_size_and_its_use(target: tuple[incus.Incus, 
     def follows(wanted: int, more: bool) -> float:
         started = time.monotonic()
         while time.monotonic() - started < WAIT_SECONDS:
-            usage = client.state(name).disk[device].usage
-            if (usage >= wanted) == more:
+            # A state that gives no use for the device is one that has not followed yet.
+            seen = client.state(name).disk.get(device)
+            usage = None if seen is None else seen.usage
+            if usage is not None and (usage >= wanted) == more:
                 return time.monotonic() - started
             time.sleep(1)
         aim = "reach" if more else "fall below"

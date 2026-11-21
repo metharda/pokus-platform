@@ -11,7 +11,9 @@ Some rules compare the catalog with the golden images table of the
 release the command is installed in (``infra-data/golden-images.json``);
 ``--infra-data DIR`` reads the table from another directory. Others
 compare it with the tool registry of that release (``tools/registry``);
-``--tools DIR`` reads the registry in another directory.
+``--tools DIR`` reads the registry in another directory. One compares each
+step's parameters with the library of fault primitives and probes of that
+release.
 
 Exit status: 0 when the catalog has no finding, 1 when it has (a path that
 is missing or is no catalog is a finding), 2 when the command line is not
@@ -22,17 +24,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
-from potka_core.catalog.lint import ToolView, lint
+from potka_core.catalog.lint import Library, StepView, ToolView, lint
 from potka_core.images import TABLE, load_table
+from potka_primitives import library as steps
+from potka_primitives.base import Step
 from potka_tools.registry import FORBIDDEN, REGISTRY, Registry, RegistryError, Tool, load_registry
 from potka_tools.template import standalone
 from potka_tools.values import below, normalize
-from pydantic import JsonValue
+from pydantic import JsonValue, ValidationError
 
 # What is wrong with a value for a tool's argument, as a finding says it.
 _SAID = {
@@ -76,6 +82,65 @@ def _view(tool: Tool) -> ToolView:
 def tool_views(registry: Registry) -> dict[str, ToolView]:
     """The tools of REGISTRY as the catalog lint sees them, by name."""
     return {tool.name: _view(tool) for tool in registry.tools}
+
+
+# What is wrong with a step's parameter, by the kind of the model's error.
+_UNFIT = {
+    "missing": "is missing",
+    "extra_forbidden": "is no parameter of it",
+    "string_pattern_mismatch": "has not the parameter's form",
+    "string_too_long": "is longer than the parameter may be",
+    "string_too_short": "is shorter than the parameter may be",
+    "too_long": "has more items than the parameter may have",
+    "too_short": "has fewer items than the parameter must have",
+    "greater_than_equal": "is not within the parameter's bounds",
+    "less_than_equal": "is not within the parameter's bounds",
+    "literal_error": "is not one of the parameter's values",
+}
+_KEY = re.compile(r"[a-z_][a-z0-9_]{0,62}")
+
+
+def _unfit(error: Mapping[str, Any]) -> str:
+    """One error of a parameter model, in words that hold no value."""
+    kind = str(error.get("type", ""))
+    if kind == "value_error":
+        # The models' own words, which name a rule and never what was given.
+        said = str(error.get("msg", "")).removeprefix("Value error, ")
+    elif kind.endswith("_type"):
+        said = "is not of the parameter's type"
+    else:
+        said = _UNFIT.get(kind, "does not fit the parameter")
+    # A place is a key or an index; a key is shown only in the form of a parameter's name.
+    place = ".".join(
+        str(part) if isinstance(part, int) or _KEY.fullmatch(str(part)) else "(a key)"
+        for part in error.get("loc", ())
+    )
+    return f"{place}: {said}" if place else said
+
+
+def _step_view(step: type[Step[Any]]) -> StepView:
+    def problem(params: Mapping[str, JsonValue]) -> tuple[str, ...]:
+        try:
+            step.parameters(params)
+        except ValidationError as refused:
+            errors = refused.errors(include_url=False, include_context=False, include_input=False)
+            return tuple(sorted({_unfit(error) for error in errors}))
+        return ()
+
+    return StepView(problem=problem, service=step.requires.service)
+
+
+def step_views(primitives: Iterable[type[Step[Any]]], probes: Iterable[type[Step[Any]]]) -> Library:
+    """Fault primitives and probes as the catalog lint sees them."""
+    return Library(
+        primitives={step.name: _step_view(step) for step in primitives},
+        probes={step.name: _step_view(step) for step in probes},
+    )
+
+
+def library_views() -> Library:
+    """The release's library of fault primitives and probes, as the catalog lint sees it."""
+    return step_views(steps.PRIMITIVES.values(), steps.PROBES.values())
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -151,7 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for path, reason in exc.problems:
             sys.stderr.write(f"  {path}: {reason}\n")
         return 2
-    findings = lint(args.path, tool_views(registry), table)
+    findings = lint(args.path, tool_views(registry), library_views(), table)
     if args.json:
         sys.stdout.write(json.dumps({"findings": [asdict(f) for f in findings]}, sort_keys=True))
         sys.stdout.write("\n")

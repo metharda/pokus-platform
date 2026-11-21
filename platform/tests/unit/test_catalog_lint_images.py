@@ -18,7 +18,7 @@ from potka_core.catalog.lint import LOAD_PRIMITIVES, PRIMITIVES, lint, lint_cata
 from potka_core.catalog.loader import load_catalog
 from potka_core.images import GoldenImages, alias_segment, load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
-from potka_testing.tool_views import TOOLS
+from potka_testing.tool_views import LIBRARY, TOOLS
 from pydantic import ValidationError
 
 WEB = "blueprints/fixture-web.yaml"
@@ -74,7 +74,7 @@ def no_web(version: int) -> list[tuple[str, str, str]]:
 
 
 def found(root: Path, images: GoldenImages | None = None) -> list[tuple[str, str, str]]:
-    findings = lint(root, TOOLS, images)
+    findings = lint(root, TOOLS, LIBRARY, images)
     assert findings == sorted(set(findings))
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
@@ -87,9 +87,9 @@ def messages(root: Path, rule: str, images: GoldenImages | None = None) -> list[
 def test_the_fixture_catalog_passes_with_the_release_s_table_and_with_one_given(
     catalog: Path,
 ) -> None:
-    assert lint(catalog, TOOLS) == []
-    assert lint(catalog, TOOLS, load_table()) == []
-    assert lint_catalog(load_catalog(catalog), TOOLS, table()) == []
+    assert lint(catalog, TOOLS, LIBRARY) == []
+    assert lint(catalog, TOOLS, LIBRARY, load_table()) == []
+    assert lint_catalog(load_catalog(catalog), TOOLS, LIBRARY, table()) == []
     assert load_table().blueprint("web-nginx-flask", GOLDEN) is not None
     assert load_table().blueprint("web-nginx-flask", OTHER) is None
 
@@ -1257,8 +1257,8 @@ def test_without_a_table_given_the_release_s_must_be_readable(
         raise FileNotFoundError(2, "No such file or directory", "golden-images.json")
 
     monkeypatch.setattr(lint_module, "load_table", missing)
-    assert lint(catalog, TOOLS, table()) == []
+    assert lint(catalog, TOOLS, LIBRARY, table()) == []
     with pytest.raises(FileNotFoundError):
-        lint(catalog, TOOLS)
+        lint(catalog, TOOLS, LIBRARY)
     with pytest.raises(FileNotFoundError):
-        lint(catalog / "no-catalog", TOOLS)
+        lint(catalog / "no-catalog", TOOLS, LIBRARY)

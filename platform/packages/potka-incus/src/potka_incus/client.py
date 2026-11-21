@@ -124,6 +124,20 @@ class Unreachable(IncusError):
     """No answer: the connection failed or timed out."""
 
 
+class WrongKind(IncusError):
+    """A path names another kind of thing than the call asked for.
+
+    Attributes:
+        found: What Incus says is there: ``file``, ``directory`` or
+            ``symlink``; empty when its answer named no kind.
+    """
+
+    def __init__(self, message: str, found: str) -> None:
+        """Keep the message and the kind found."""
+        super().__init__(message)
+        self.found = found
+
+
 class OperationFailed(IncusError):
     """An operation ended in failure or was cancelled.
 
@@ -260,7 +274,7 @@ class Disk:
 
     Attributes:
         usage: What is used.
-        total: What Incus reports as the whole.
+        total: What Incus reports as the whole; 0 when it reports none.
     """
 
     usage: int
@@ -275,8 +289,8 @@ class State:
         status: Its status in words.
         status_code: Its status as Incus's code.
         pid: The process ID of its first process, 0 when it does not run.
-        disk: The use of each of its disk devices, by device name (the
-            root disk's under :attr:`Instance.root_device`).
+        disk: The use of each of its disk devices that Incus measured, by
+            device name (the root disk's under :attr:`Instance.root_device`).
     """
 
     status: str
@@ -709,12 +723,17 @@ class Incus:
         )
 
     def state(self, name: str) -> State:
-        """An instance's state, with the use of its disks."""
+        """An instance's state, with the use of its disks.
+
+        A disk whose use Incus did not give is left out: a use that is not
+        known is never taken for 0.
+        """
         answer = self._call("GET", f"/1.0/instances/{checked_name(name)}/state")
         data = self._metadata(answer, dict)
         disks = {
             device: Disk(usage=_field(use, "usage", int), total=_field(use, "total", int))
             for device, use in _maps(data, "disk").items()
+            if use.get("usage") is not None
         }
         return State(
             status=_field(data, "status", str),
@@ -921,7 +940,7 @@ class Incus:
         response = self._call("GET", f"/1.0/instances/{checked_name(name)}/files", params=query)
         found = response.headers.get("X-Incus-type", "")
         if found != kind:
-            raise IncusError(f"{path}: a {found or 'thing of no type'}, not a {kind}")
+            raise WrongKind(f"{path}: a {found or 'thing of no type'}, not a {kind}", found)
         return response
 
     def read_file(self, name: str, path: str) -> File:
@@ -934,9 +953,9 @@ class Incus:
         Raises:
             ValueError: The name or PATH is not one; no request is sent.
             NotFound: The instance has no such file.
-            IncusError: PATH names a directory or a symbolic link (the last
-                part of a path is not followed), or the answer lacks the
-                file's owner or mode.
+            WrongKind: PATH names a directory or a symbolic link (the last
+                part of a path is not followed).
+            IncusError: The answer lacks the file's owner or mode.
         """
         response = self._file(name, path, "file")
         uid, gid, mode = (
@@ -950,8 +969,8 @@ class Incus:
         """The names in a directory.
 
         Raises:
-            IncusError: PATH names what is no directory, or the answer is
-                no list of names.
+            WrongKind: PATH names what is no directory.
+            IncusError: The answer is no list of names.
         """
         names = self._metadata(self._file(name, path, "directory"), list)
         if not all(isinstance(entry, str) for entry in names):

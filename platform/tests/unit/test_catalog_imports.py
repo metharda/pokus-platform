@@ -24,6 +24,9 @@ ENTRY_POINTS = ("potka_gateway.main", "potka_executor.main", "potka_agent.main")
 # imports it and whenever.
 LIBRARIES = ("potka_tools",)
 CATALOG = "potka_core.catalog"
+# The library of faults and probes: it reaches no catalog code either, and none of the
+# three services reaches it, so that the path of a fault and an agent's path never meet.
+FAULTS = "potka_primitives"
 
 
 def modules(packages: Path) -> dict[str, Path]:
@@ -126,6 +129,41 @@ def test_no_module_of_a_library_reaches_the_catalog_or_imports_by_other_means() 
             assert catalog_modules(reached) == [], name
             for other in sorted(reached):
                 assert other_means(known[other]) == [], other
+
+
+def of_the_faults(names: set[str]) -> list[str]:
+    return sorted(n for n in names if n == FAULTS or n.startswith(FAULTS + "."))
+
+
+@pytest.mark.parametrize("entry", ENTRY_POINTS)
+def test_no_module_an_entry_point_reaches_is_of_the_library_of_faults(entry: str) -> None:
+    known = modules(PACKAGES)
+    assert len(of_the_faults(set(known))) > 4
+    assert of_the_faults(reachable(entry, known)) == []
+    for library in LIBRARIES:
+        own = sorted(n for n in known if n == library or n.startswith(library + "."))
+        for name in own:
+            assert of_the_faults(reachable(name, known)) == [], name
+
+
+def test_no_module_of_the_core_reaches_the_library_of_faults() -> None:
+    known = modules(PACKAGES)
+    own = sorted(n for n in known if n == "potka_core" or n.startswith("potka_core."))
+    assert len(own) > 10 and "potka_core.catalog.lint" in own and "potka_core.shells" in own
+    for name in own:
+        assert of_the_faults(reachable(name, known)) == [], name
+
+
+def test_no_module_of_the_library_of_faults_reaches_the_catalog() -> None:
+    known = modules(PACKAGES)
+    own = of_the_faults(set(known))
+    for name in own:
+        reached = reachable(name, known)
+        assert catalog_modules(reached) == [], name
+        for other in sorted(reached):
+            assert other_means(known[other]) == [], other
+    # It does reach the Incus client, through which alone it acts.
+    assert "potka_incus.client" in reachable(f"{FAULTS}.context", known)
 
 
 def test_other_means_of_importing_are_found(tmp_path: Path) -> None:

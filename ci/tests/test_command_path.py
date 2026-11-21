@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from potka_tools import template
+from potka_core import shells
 
 from potka_ci import command_path
 
@@ -38,15 +38,12 @@ def tree(root: Path, source: str, package: str = "potka-executor") -> Path:
 def test_the_repository_s_command_path_holds_no_shell() -> None:
     outcome = command_path.run(ROOT)
     assert outcome.status == "passed"
-    # Every .py file of the five packages that are there, counted here on its own.
+    # Every .py file of the six packages, counted here on its own.
     packages = ROOT / "platform" / "packages"
     there = [name for name in command_path.PACKAGES if (packages / name).is_dir()]
     files = sum(1 for name in there for _ in (packages / name / "src").rglob("*.py"))
-    assert files >= 19
-    assert outcome.lines == [
-        f"{files} file(s) of 5 package(s) on the command path: no shell"
-        " (not there: potka-primitives)"
-    ]
+    assert files >= 25
+    assert outcome.lines == [f"{files} file(s) of 6 package(s) on the command path: no shell"]
     # The check reads the packages that make, check and carry a command, and every
     # package of the release is on one of its two lists.
     assert command_path.PACKAGES == (
@@ -58,11 +55,10 @@ def test_the_repository_s_command_path_holds_no_shell() -> None:
         "potka-verifier",
     )
     known = {*command_path.PACKAGES, *command_path.OTHERS}
-    assert {entry.name for entry in packages.iterdir() if entry.is_dir()} == known - {
-        "potka-primitives"
-    }
+    assert {entry.name for entry in packages.iterdir() if entry.is_dir()} == known
     assert not set(command_path.PACKAGES) & set(command_path.OTHERS)
-    assert list(command_path.SHELLS) == sorted(template.SHELLS)
+    # The check imports no package of the platform: its list of shells is a copy of theirs.
+    assert list(command_path.SHELLS) == sorted(shells.SHELLS)
 
 
 def test_commands_as_lists_and_words_about_shells_are_no_findings(tmp_path: Path) -> None:
