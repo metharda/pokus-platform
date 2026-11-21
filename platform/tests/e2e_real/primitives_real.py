@@ -13,7 +13,9 @@ directory, with the variables of ``incus_real.py``:
 * ``POTKA_E2E_INCUS_INSTANCE``: the name of a running instance of that
   project;
 * ``POTKA_E2E_IMAGE``, if wanted: what to call the instance's image in what
-  is printed (``base/1.0.1``).
+  is printed (``base/1.0.1``);
+* ``POTKA_E2E_UNIT``, if wanted: a unit of the instance whose state is read
+  (``systemd-journald.service`` when not given).
 
 The checks here change nothing in the instance: they list directories and
 run commands that only read. What they print is for the person who runs
@@ -33,7 +35,7 @@ from pathlib import Path
 
 import pytest
 from potka_incus import client as incus
-from potka_primitives import context, disk
+from potka_primitives import context, disk, units
 from potka_primitives.base import BASE_IMAGE
 from potka_primitives.context import Node, Ran, Targets
 from potka_primitives.errors import Refusal
@@ -41,8 +43,15 @@ from potka_primitives.errors import Refusal
 VARIABLES = ("URL", "CERTS", "PROJECT", "INSTANCE")
 ALIAS = "node"
 SPOOL = "/var/tmp"  # noqa: S108 (a directory inside the instance)
-# The kept output that a file system's answer can take the place of, by the type ``stat``
-# names at its end.
+# The kept output that a unit's state can take the place of, by what systemd says of it.
+SHOWN = {
+    ("loaded", "active", "enabled"): "systemctl-show-active",
+    ("loaded", "inactive", "disabled"): "systemctl-show-inactive",
+    ("loaded", "failed", "enabled"): "systemctl-show-failed",
+    ("masked", "inactive", "masked"): "systemctl-show-masked",
+    ("loaded", "active", "static"): "systemctl-show-static",
+}
+# The same for a file system, by the type ``stat`` names at the end of its answer.
 COUNTED = {b":ext2/ext3\n": "stat-fs-ext4", b":btrfs\n": "stat-fs-btrfs"}
 # The programs of the operating system image's own packages that the library runs:
 # no table of what a blueprint installs can say that they are there.
@@ -118,3 +127,23 @@ def test_the_disk_programs_print_what_the_library_reads(node: Node) -> None:
     else:
         print(f"inodes: {in_use} of {total} in use")
         assert 0 < in_use <= total
+
+
+def test_systemd_and_stat_print_what_the_library_reads(node: Node) -> None:
+    unit = os.environ.get("POTKA_E2E_UNIT", "") or "systemd-journald.service"
+    state = units.unit_state(node, unit)
+    assert state.load != "not-found", "the instance has no unit of that name"
+    of_state = SHOWN.get((state.load, state.active, state.file), "systemctl-show-of-another-state")
+    for name, asked in ((of_state, unit), ("systemctl-show-not-found", "no-such.service")):
+        shown = node.run(
+            ["systemctl", "show", f"--property={','.join(units.PROPERTIES)}", "--", asked]
+        )
+        kept(name, shown)
+    assert units.unit_state(node, "no-such.service").load == "not-found"
+    # A file, a directory and a link that the operating system image has: /bin is a link.
+    for name, path in (
+        ("stat-file-regular", "/etc/hostname"),
+        ("stat-file-directory", "/etc"),
+        ("stat-file-link", "/bin"),
+    ):
+        kept(name, node.run(["stat", "--format=%a:%u:%g:%F", "--", path]))

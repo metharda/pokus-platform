@@ -211,7 +211,8 @@ def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
 def test_every_step_names_a_known_primitive_or_probe(catalog: Path) -> None:
     def scenario(d: Any) -> None:
         d["preconditions"].append({"probe": "http_gets", "params": {}})
-        d["setup"].append({"primitive": "file.write", "params": {}})
+        written = {"node": "web", "path": "/etc/motd", "content": "hello\n"}
+        d["setup"].append({"primitive": "file.write", "params": written})
         d["setup"].append({"primitive": "file.writes", "params": {}})
         d["inject"].insert(0, {"primitive": "nginx.corrupt", "params": {}})
         d["confirm"].append({"probe": "nginx_config", "params": {}})
@@ -383,7 +384,9 @@ def test_a_control_scenario_accepts_none_only_has_no_action_and_injects_nothing(
 
 def test_a_control_scenario_may_prepare_its_target(catalog: Path) -> None:
     def prepared(d: Any) -> None:
-        d["setup"].append({"primitive": "file.mutate", "params": {"node": "web"}})
+        edit = {"edit": "set_key", "key": "workers", "value": "2"}
+        prepared_file = {"node": "web", "path": "/etc/fixture-web/app.conf", "edits": [edit]}
+        d["setup"].append({"primitive": "file.mutate", "params": prepared_file})
         d["preconditions"].append({"probe": "load_below", "params": {"node": "web"}})
 
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", prepared)

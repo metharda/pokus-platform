@@ -1,0 +1,7 @@
+source: manual
+status: 0
+stream: stdout
+---
+LoadState=loaded
+ActiveState=active
+UnitFileState=static

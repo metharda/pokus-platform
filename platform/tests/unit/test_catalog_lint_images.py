@@ -58,18 +58,31 @@ def table(change: Callable[[dict[str, Any]], object] | None = None) -> GoldenIma
 
 
 def no_web(version: int) -> list[tuple[str, str, str]]:
-    """The findings for the actions of FIXTURE-001 on a blueprint without the node web."""
+    """The findings for FIXTURE-001 on a blueprint without the node web: its actions, its faults."""
     return [
-        (
-            f"scenarios/FIXTURE-001/{version}/ground_truth.yaml",
-            "actions",
-            f"{place}: {tool} node: is no node of the scenario's blueprint",
-        )
-        for place, tool in (
-            ("acceptable.0", "apply_config_patch"),
-            ("harmful.0", "stop_service"),
-            ("then_required.0", "start_service"),
-        )
+        *(
+            (
+                f"scenarios/FIXTURE-001/{version}/ground_truth.yaml",
+                "actions",
+                f"{place}: {tool} node: is no node of the scenario's blueprint",
+            )
+            for place, tool in (
+                ("acceptable.0", "apply_config_patch"),
+                ("harmful.0", "stop_service"),
+                ("then_required.0", "start_service"),
+            )
+        ),
+        *(
+            (
+                f"scenarios/FIXTURE-001/{version}/scenario.yaml",
+                "params",
+                f"{place}: {primitive}: node: is no node of the scenario's blueprint",
+            )
+            for place, primitive in (
+                ("inject.0", "nginx.corrupt_conf"),
+                ("inject.1", "systemd.action"),
+            )
+        ),
     ]
 
 
@@ -683,7 +696,16 @@ def test_another_primitive_s_parameters_are_not_a_load_primitive_s(
     catalog: Path, profile: None
 ) -> None:
     add(catalog, ONE, "inject", step("file.mutate", node="db", component="x", setting=1))
-    assert found(catalog) == []
+    # The rule on load primitives says nothing of it; what its own parameters must be is
+    # another rule's.
+    assert found(catalog) == [
+        (
+            ONE,
+            "params",
+            "inject.2: file.mutate: component: is no parameter of it; edits: is missing;"
+            " path: is missing; setting: is no parameter of it",
+        )
+    ]
 
 
 # paths
@@ -1064,7 +1086,7 @@ def test_an_overlay_s_paths_hold_no_forbidden_term(
         ("Resource.Disk_Full\n", [(1, "the label resource.disk_full, which a ground truth uses")]),
         ("service.stopped config.wrong_value resource.cpu_saturated\n", []),
         ("none unknown None UNKNOWN\n", []),
-        ("the web server, the database node's temporary volume\n", []),
+        ("the web server, the database node's root disk\n", []),
         (
             "potka\nFIXTURE-002\npotka FIXTURE-002\n",
             [(1, "the string potka"), (2, "the scenario ID FIXTURE-002")],

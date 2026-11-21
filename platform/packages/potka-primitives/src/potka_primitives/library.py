@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from types import MappingProxyType
 from typing import Any
 
-from potka_primitives import disk
+from potka_primitives import disk, files, nginx, units
 from potka_primitives.base import Primitive, Probe, Step
 from potka_primitives.errors import UnknownName
 
@@ -25,7 +25,9 @@ def index[S: Step[Any]](classes: Iterable[type[S]]) -> Mapping[str, type[S]]:
     return MappingProxyType(dict(sorted(found.items())))
 
 
-PRIMITIVES: Mapping[str, type[Primitive[Any]]] = index((*disk.PRIMITIVES,))
+PRIMITIVES: Mapping[str, type[Primitive[Any]]] = index(
+    (*disk.PRIMITIVES, *files.PRIMITIVES, *nginx.PRIMITIVES, *units.PRIMITIVES)
+)
 PROBES: Mapping[str, type[Probe[Any]]] = index((*disk.PROBES,))
 
 
