@@ -373,7 +373,12 @@ def test_a_control_scenario_accepts_none_only_has_no_action_and_injects_nothing(
     edit_yaml(
         catalog,
         f"{CONTROL}/scenario.yaml",
-        lambda d: d["inject"].append({"primitive": "pg.stop", "params": {}}),
+        lambda d: d["inject"].append(
+            {
+                "primitive": "systemd.action",
+                "params": {"node": "web", "unit": "nginx.service", "action": "stop"},
+            }
+        ),
     )
     assert found(catalog) == [
         only_none,

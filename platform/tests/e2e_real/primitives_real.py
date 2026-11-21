@@ -21,9 +21,16 @@ The checks here change nothing in the instance: they list directories and
 run commands that only read. What they print is for the person who runs
 them and for ``tests/fixtures/target-outputs/``: each output is printed in
 the form of a file of that directory (``potka_testing.outputs``), with
-``source: recorded``, so that it can take the place of the one that was
-written from a program's documentation. What is printed can hold names of
-the instance's files, units and devices.
+``source: recorded``, under the name of the file it can take the place of,
+which was written from a program's documentation. What is printed can
+hold names of the instance's files, units and devices.
+
+Only what a reading command prints can be recorded here: a mount, an inode
+count, a unit's state as it is, the three kinds of ``stat``'s answer, an
+interface's queueing discipline as it is. What a program prints once a
+fault is made (a full disk, a start that fails, a container, a delaying
+discipline) stays as it was written, and how the state's use follows an
+allocation is the other file's to measure (``incus_real.py``).
 """
 
 from __future__ import annotations
@@ -35,7 +42,7 @@ from pathlib import Path
 
 import pytest
 from potka_incus import client as incus
-from potka_primitives import context, disk, units
+from potka_primitives import context, disk, services, units
 from potka_primitives.base import BASE_IMAGE
 from potka_primitives.context import Node, Ran, Targets
 from potka_primitives.errors import Refusal
@@ -147,3 +154,16 @@ def test_systemd_and_stat_print_what_the_library_reads(node: Node) -> None:
         ("stat-file-link", "/bin"),
     ):
         kept(name, node.run(["stat", "--format=%a:%u:%g:%F", "--", path]))
+
+
+def test_tc_prints_what_the_library_reads(node: Node) -> None:
+    shown = node.run(["tc", "qdisc", "show", "dev", services.INTERFACE])
+    plain = shown.stdout.startswith(b"qdisc noqueue ")
+    kept("tc-qdisc-noqueue" if plain else "tc-qdisc-of-another-kind", shown)
+    assert shown.exit_code == 0, "the instance has no interface of that name"
+    # Whether a delaying discipline can be added is the host's: its kernel must have it,
+    # and an instance cannot load it. Nothing is added here, so this does not say. An
+    # entry of the module shows that it is loaded; none shows nothing, for the kernel
+    # may have the discipline built in, or load it when it is first asked for.
+    entry = node.kind("/sys/module/sch_netem")
+    print(f"\n/sys/module/sch_netem in the instance: {entry} (none decides nothing)")
