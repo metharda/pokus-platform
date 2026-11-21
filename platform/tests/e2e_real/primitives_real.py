@@ -11,7 +11,9 @@ directory, with the variables of ``incus_real.py``:
   ``POTKA_E2E_INCUS_PROJECT``: the API, a service's certificates, the
   project;
 * ``POTKA_E2E_INCUS_INSTANCE``: the name of a running instance of that
-  project.
+  project;
+* ``POTKA_E2E_IMAGE``, if wanted: what to call the instance's image in what
+  is printed (``base/1.0.1``).
 
 The checks here change nothing in the instance: they list directories and
 run commands that only read. What they print is for the person who runs
@@ -31,12 +33,17 @@ from pathlib import Path
 
 import pytest
 from potka_incus import client as incus
-from potka_primitives import context
+from potka_primitives import context, disk
 from potka_primitives.base import BASE_IMAGE
 from potka_primitives.context import Node, Ran, Targets
+from potka_primitives.errors import Refusal
 
 VARIABLES = ("URL", "CERTS", "PROJECT", "INSTANCE")
 ALIAS = "node"
+SPOOL = "/var/tmp"  # noqa: S108 (a directory inside the instance)
+# The kept output that a file system's answer can take the place of, by the type ``stat``
+# names at its end.
+COUNTED = {b":ext2/ext3\n": "stat-fs-ext4", b":btrfs\n": "stat-fs-btrfs"}
 # The programs of the operating system image's own packages that the library runs:
 # no table of what a blueprint installs can say that they are there.
 OF_THE_IMAGE = {
@@ -61,9 +68,10 @@ def node() -> Iterator[Node]:
         yield Targets(client, {ALIAS: variable("INSTANCE")}).node(ALIAS)
 
 
-def kept(name: str, ran: Ran, image: str) -> None:
+def kept(name: str, ran: Ran) -> None:
     """Print a command's end as a file of the kept outputs would hold it."""
     today = datetime.datetime.now(tz=datetime.UTC).date().isoformat()
+    image = os.environ.get("POTKA_E2E_IMAGE", "") or "an-image-not-named"
     stream, content = ("stderr", ran.stderr) if ran.exit_code else ("stdout", ran.stdout)
     print(f"\n# {name}.txt")
     print(f"source: recorded\nrecorded: {today} {image}\nstatus: {ran.exit_code}")
@@ -89,3 +97,24 @@ def test_a_command_gets_the_library_s_environment(node: Node) -> None:
     print(f"\nPATH={given.get('PATH')}\nLC_ALL={given.get('LC_ALL')}")
     assert given.get("PATH") == context.ENVIRONMENT["PATH"]
     assert given.get("LC_ALL") == "C"
+
+
+def test_the_disk_programs_print_what_the_library_reads(node: Node) -> None:
+    mount = node.run(["findmnt", "--noheadings", "--output", "TARGET", f"--target={SPOOL}"])
+    kept("findmnt-root", mount)
+    counted = node.run(["stat", "--file-system", "--format=%c:%d:%T", "--", "/"])
+    of_type = [name for end, name in COUNTED.items() if counted.stdout.endswith(end)]
+    kept(of_type[0] if of_type else "stat-fs-of-another-type", counted)
+    print(f"\nroot disk: configured size {node.root_size()}, use {node.root_usage()}")
+    # The library's own readers take these outputs, or say why not.
+    disk.on_root_disk(node, SPOOL)
+    size, used = disk.measured(node)
+    assert 0 < used <= size
+    try:
+        total, in_use = disk.inodes(node, "/")
+    except Refusal as refusal:
+        print(f"inodes: {refusal.reason}")
+        assert refusal.reason == "inode_count_not_fixed"
+    else:
+        print(f"inodes: {in_use} of {total} in use")
+        assert 0 < in_use <= total

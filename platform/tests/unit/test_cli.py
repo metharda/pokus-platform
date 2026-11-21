@@ -57,6 +57,19 @@ def test_findings_are_printed_one_per_line_with_their_count(
     )
 
 
+def test_a_step_s_parameters_are_checked_against_the_release_s_library(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = copy_fixture(tmp_path / "catalog")
+    two = "scenarios/FIXTURE-002/1/scenario.yaml"
+    edit_yaml(root, two, lambda d: d["inject"][0]["params"].update(mount="/srv/zq-marked"))
+    assert main(["catalog", "lint", str(root)]) == 1
+    assert capsys.readouterr() == (
+        f"{two}: params: inject.0: disk.fill: mount: is no parameter of it\n1 finding(s)\n",
+        "",
+    )
+
+
 def test_json_output_is_one_object_with_every_finding(
     broken: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -163,14 +163,34 @@ def test_the_versions_of_a_scenario_share_its_split(catalog: Path) -> None:
 
 def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web"))
-    # The blueprint is one of the catalog; what its actions name there is another rule's.
+    # The blueprint is one of the catalog; what its actions and its steps name there is
+    # other rules' to find.
+    no_node = "node: is no node of the scenario's blueprint"
     assert found(catalog) == [
+        *(
+            (
+                "scenarios/FIXTURE-002/1/ground_truth.yaml",
+                "actions",
+                f"{place}: {tool} node: is no node of the scenario's blueprint",
+            )
+            for place, tool in (("acceptable.0", "remove_file"), ("harmful.0", "stop_service"))
+        ),
         (
             "scenarios/FIXTURE-002/1/ground_truth.yaml",
-            "actions",
-            f"{place}: {tool} node: is no node of the scenario's blueprint",
-        )
-        for place, tool in (("acceptable.0", "remove_file"), ("harmful.0", "stop_service"))
+            "params",
+            f"verification.0: disk_usage_below: {no_node}",
+        ),
+        (
+            "scenarios/FIXTURE-002/1/scenario.yaml",
+            "params",
+            f"confirm.0: disk_usage_below: {no_node}",
+        ),
+        ("scenarios/FIXTURE-002/1/scenario.yaml", "params", f"inject.0: disk.fill: {no_node}"),
+        (
+            "scenarios/FIXTURE-002/1/scenario.yaml",
+            "params",
+            f"preconditions.0: disk_usage_below: {no_node}",
+        ),
     ]
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web-app"))
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", lambda d: d.update(blueprint="web"))
