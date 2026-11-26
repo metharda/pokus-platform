@@ -56,7 +56,9 @@ class Program:
 
     Attributes:
         name: Its name, without a directory.
-        package: The package that ships it.
+        package: The package that brings it into a target: the one that
+            ships it, or a service's own package where a package that one
+            depends on ships the service's client program.
     """
 
     name: str

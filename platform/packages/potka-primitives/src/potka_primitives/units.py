@@ -1,4 +1,4 @@
-"""What systemd says of a unit, and the faults that act on one.
+"""What systemd says of a unit, the faults that act on one, and the probe that asks.
 
 One command says everything the library asks of a unit:
 ``systemctl show --property=LoadState,ActiveState,UnitFileState -- <unit>``,
@@ -16,10 +16,19 @@ from typing import Annotated, Final, Literal
 from potka_core.shells import is_shell
 from pydantic import AfterValidator, Field
 
-from potka_primitives.base import Effects, Facts, Params, Primitive, Program, Requires
-from potka_primitives.context import Node
+from potka_primitives.base import (
+    Effects,
+    Facts,
+    Params,
+    Primitive,
+    Probe,
+    Program,
+    Requires,
+    Verdict,
+)
+from potka_primitives.context import Node, Targets
 from potka_primitives.errors import Refusal
-from potka_primitives.values import Unit
+from potka_primitives.values import AnyUnit, Unit
 
 SYSTEMCTL: Final = Program("systemctl", "systemd")
 MKDIR: Final = Program("mkdir", "coreutils")
@@ -266,4 +275,49 @@ class SystemdBreakUnit(Primitive[BreakParams]):
         return {}
 
 
+class StateParams(Params):
+    """A unit and the state it is asked to be in."""
+
+    unit: AnyUnit
+    """The unit, by the form of its name alone: the probe only reads, so the units a fault
+    may not act on, systemd's own and the lab's channel into a target, may be asked about."""
+    state: Literal[
+        "active", "reloading", "inactive", "failed", "activating", "deactivating", "maintenance"
+    ]
+    """The state systemd must say the unit is in."""
+
+
+class UnitInState(Probe[StateParams]):
+    """``unit_state``: whether a unit that systemd has loaded is in a state.
+
+    A unit that systemd has not loaded, one it does not know or one that
+    is masked, is in no state that can be asked for: the probe fails for
+    every state, and its facts say what systemd said.
+    """
+
+    name = "unit_state"
+    version = 1
+    Params = StateParams
+    requires = Requires((SYSTEMCTL,))
+    reports = frozenset({"load_state", "active_state"})
+    words = frozenset({*LOAD_STATES, *ACTIVE_STATES})
+
+    def describe(self, params: StateParams) -> str:
+        """One sentence that says what the probe asks with these parameters."""
+        return (
+            f"Passes while systemd on the node {params.node} has {params.unit} loaded and says"
+            f" that it is {params.state}."
+        )
+
+    def _measure(self, targets: Targets, params: StateParams) -> Verdict:
+        state = unit_state(targets.node(params.node), params.unit)
+        as_asked = state.load == "loaded" and state.active == params.state
+        return Verdict(
+            "passed" if as_asked else "failed",
+            None,
+            {"load_state": state.load, "active_state": state.active},
+        )
+
+
 PRIMITIVES: Final = (SystemdAction, SystemdBreakUnit)
+PROBES: Final = (UnitInState,)

@@ -15,7 +15,9 @@ directory, with the variables of ``incus_real.py``:
 * ``POTKA_E2E_IMAGE``, if wanted: what to call the instance's image in what
   is printed (``base/1.0.1``);
 * ``POTKA_E2E_UNIT``, if wanted: a unit of the instance whose state is read
-  (``systemd-journald.service`` when not given).
+  (``systemd-journald.service`` when not given);
+* ``POTKA_E2E_CONTAINER``, if wanted: a container of the instance's Docker
+  whose state is read.
 
 The checks here change nothing in the instance: they list directories and
 run commands that only read. What they print is for the person who runs
@@ -27,10 +29,17 @@ hold names of the instance's files, units and devices.
 
 Only what a reading command prints can be recorded here: a mount, an inode
 count, a unit's state as it is, the three kinds of ``stat``'s answer, an
-interface's queueing discipline as it is. What a program prints once a
-fault is made (a full disk, a start that fails, a container, a delaying
-discipline) stays as it was written, and how the state's use follows an
-allocation is the other file's to measure (``incus_real.py``).
+interface's queueing discipline as it is, and what PostgreSQL's, Redis's
+and Docker's client programs answer where the instance has them. What a
+program prints once a fault is made (a full disk, a start that fails, a
+delaying discipline, a server that is not reached) stays as it was
+written, and how the state's use follows an allocation is the other
+file's to measure (``incus_real.py``).
+
+The probes of PostgreSQL are built to leave no line in the server's log.
+Whether they do is printed, not asserted: the size of the log's directory
+before and after their commands, which other clients and the server's own
+work can change too.
 """
 
 from __future__ import annotations
@@ -84,11 +93,16 @@ def node() -> Iterator[Node]:
         yield Targets(client, {ALIAS: variable("INSTANCE")}).node(ALIAS)
 
 
-def kept(name: str, ran: Ran) -> None:
-    """Print a command's end as a file of the kept outputs would hold it."""
+def kept(name: str, ran: Ran, *, says_on_stdout: bool = False) -> None:
+    """Print a command's end as a file of the kept outputs would hold it.
+
+    The stream is the error output when the command failed, unless the
+    program says what it found on its standard output whatever its status.
+    """
     today = datetime.datetime.now(tz=datetime.UTC).date().isoformat()
     image = os.environ.get("POTKA_E2E_IMAGE", "") or "an-image-not-named"
-    stream, content = ("stderr", ran.stderr) if ran.exit_code else ("stdout", ran.stdout)
+    failed = ran.exit_code != 0 and not says_on_stdout
+    stream, content = ("stderr", ran.stderr) if failed else ("stdout", ran.stdout)
     print(f"\n# {name}.txt")
     print(f"source: recorded\nrecorded: {today} {image}\nstatus: {ran.exit_code}")
     print(f"stream: {stream}\n---\n{content.decode('utf-8', 'replace')}", end="")
@@ -167,3 +181,65 @@ def test_tc_prints_what_the_library_reads(node: Node) -> None:
     # may have the discipline built in, or load it when it is first asked for.
     entry = node.kind("/sys/module/sch_netem")
     print(f"\n/sys/module/sch_netem in the instance: {entry} (none decides nothing)")
+
+
+# What pg_isready's status says, as the kept output of that answer is named.
+READY = {0: "pg-isready-accepting", 1: "pg-isready-rejecting", 2: "pg-isready-no-response"}
+
+
+# Where PostgreSQL's packages have the server write its log.
+SERVER_LOG = "/var/log/postgresql"
+# Statements for the probe's command: one the server runs, one it refuses for what the
+# target holds, one it refuses for what the statement is. The last two under the names
+# of the kept outputs they can take the place of.
+STATEMENTS = (
+    ("", "SELECT 1"),
+    ("psql-statement-failed", "SELECT 1 FROM zq_no_such_relation"),
+    ("psql-statement-syntax", "SELECT 1 FROM"),
+)
+
+
+def log_bytes(node: Node) -> int:
+    """How many bytes the files of the server's log directory hold."""
+    said = node.run(["du", "--bytes", "--summarize", "--", SERVER_LOG]).expect(0).text()
+    return int(said.split()[0])
+
+
+def test_the_services_client_programs_print_what_the_probes_read(node: Node) -> None:
+    asked = []
+    if node.has("pg_isready"):
+        # As the probes ask: as PostgreSQL's own user, whom the server knows.
+        user, group = services.account(node, services.POSTGRES)
+        for which, name in (("--user", "id-number"), ("--group", "id-number-group")):
+            kept(name, node.run(["id", which, "--", services.POSTGRES]))
+        before = log_bytes(node)
+        ready = node.run(["pg_isready"], cwd="/", user=user, group=group)
+        kept(READY.get(ready.exit_code, "pg-isready-of-another-status"), ready, says_on_stdout=True)
+        for name, query in STATEMENTS:
+            sent = node.run(
+                services.statement(services.POSTGRES, query), cwd="/", user=user, group=group
+            )
+            if name:
+                kept(name, sent)
+            else:
+                print(f"\npsql, a statement the server runs: status {sent.exit_code}")
+        grown = log_bytes(node) - before
+        print(f"\n{SERVER_LOG} grew by {grown} bytes while the probes' commands ran")
+        asked.append("pg_isready and psql")
+    if node.has("redis-cli"):
+        pong = node.run(["redis-cli", "ping"])
+        kept("redis-cli-pong" if pong.exit_code == 0 else "redis-cli-refused", pong)
+        asked.append("redis-cli")
+    # Docker is asked only while its daemon runs: a command to a stopped one would start it.
+    daemon = services.DOCKER_UNITS[1]
+    if node.has("docker") and units.unit_state(node, daemon).active in units.RUNNING:
+        status = ["docker", "inspect", "--type=container", "--format={{.State.Status}}", "--"]
+        kept("docker-inspect-missing", node.run([*status, "zq-no-such-container"]))
+        container = os.environ.get("POTKA_E2E_CONTAINER", "")
+        if container:
+            shown = node.run([*status, container])
+            state = shown.stdout.decode("utf-8", "replace").strip() or "of-no-state"
+            kept(f"docker-inspect-status-{state}", shown)
+        asked.append("docker")
+    # An instance of another image has none of the programs: nothing is asked, nothing is wrong.
+    print(f"\nclient programs asked in this instance: {', '.join(asked) or 'none'}")

@@ -77,5 +77,11 @@ AbsolutePath = Annotated[str, Field(max_length=4096), AfterValidator(_path)]
 """An absolute path in its normal form; never ``/`` and never in ``/dev``, ``/proc``, ``/sys``."""
 Unit = Annotated[str, AfterValidator(_unit), AfterValidator(_unprotected)]
 """A service, socket or timer unit that a fault may act on."""
+AnyUnit = Annotated[str, AfterValidator(_unit)]
+"""A service, socket or timer unit by the form of its name alone: what a probe may ask about.
+
+The units a fault may not act on (``PROTECTED_UNITS``: systemd's own, the lab's channel
+into a target) are let in, since asking about one changes nothing.
+"""
 Percent = Annotated[int, Field(ge=1, le=100)]
 """A percentage from 1 to 100."""

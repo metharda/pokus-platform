@@ -58,27 +58,30 @@ def table(change: Callable[[dict[str, Any]], object] | None = None) -> GoldenIma
 
 
 def no_web(version: int) -> list[tuple[str, str, str]]:
-    """The findings for FIXTURE-001 on a blueprint without the node web: its actions, its faults."""
+    """The findings for FIXTURE-001 on a blueprint without the node web.
+
+    Its actions, and its steps whose primitive or probe the library has.
+    """
+    no_node = "node: is no node of the scenario's blueprint"
+    truth = f"scenarios/FIXTURE-001/{version}/ground_truth.yaml"
     return [
         *(
-            (
-                f"scenarios/FIXTURE-001/{version}/ground_truth.yaml",
-                "actions",
-                f"{place}: {tool} node: is no node of the scenario's blueprint",
-            )
+            (truth, "actions", f"{place}: {tool} {no_node}")
             for place, tool in (
                 ("acceptable.0", "apply_config_patch"),
                 ("harmful.0", "stop_service"),
                 ("then_required.0", "start_service"),
             )
         ),
+        (truth, "params", f"verification.1: unit_state: {no_node}"),
         *(
             (
                 f"scenarios/FIXTURE-001/{version}/scenario.yaml",
                 "params",
-                f"{place}: {primitive}: node: is no node of the scenario's blueprint",
+                f"{place}: {step}: {no_node}",
             )
-            for place, primitive in (
+            for place, step in (
+                ("confirm.1", "unit_state"),
                 ("inject.0", "nginx.corrupt_conf"),
                 ("inject.1", "systemd.action"),
             )

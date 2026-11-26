@@ -1,0 +1,5 @@
+source: manual
+status: 2
+stream: stdout
+---
+/var/run/postgresql:5432 - no response

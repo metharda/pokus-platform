@@ -61,17 +61,51 @@ FAULTS: dict[str, dict[str, Any]] = {
     "pg.break_hba": {"path": HBA, "unit": PG, "defect": "reject"},
     "redis.stop": {"unit": "redis-server.service"},
 }
+# For every probe: its parameters without the node, on the same node, where it passes.
+PROBES: dict[str, dict[str, Any]] = {
+    "container_state": {"container": "web", "state": "running"},
+    "disk_usage_below": {"percent": 90},
+    "inode_usage_below": {"path": "/srv", "percent": 90},
+    "pg_query": {"database": "appdb", "query": "SELECT 1"},
+    "pg_ready": {},
+    "redis_ping": {},
+    "unit_state": {"unit": "nginx.service", "state": "active"},
+}
 PROGRAMS = (
     "chmod",
     "chown",
     "docker",
     "fallocate",
     "findmnt",
+    "id",
     "mkdir",
+    "pg_isready",
+    "psql",
+    "redis-cli",
     "stat",
     "systemctl",
     "tc",
     "touch",
+)
+# What the probes of a node's services run, each ending as its kept output has it.
+ASKED: dict[tuple[str, ...], str] = {
+    ("docker", "inspect", "--type=container", "--format={{.State.Status}}", "--", "web"): (
+        "docker-inspect-status-running"
+    ),
+    ("pg_isready",): "pg-isready-accepting",
+    ("id", "--user", "--", "postgres"): "id-number",
+    ("id", "--group", "--", "postgres"): "id-number-group",
+    ("redis-cli", "ping"): "redis-cli-pong",
+}
+STATEMENT = (
+    "psql",
+    "--no-psqlrc",
+    "--quiet",
+    "--set=VERBOSITY=sqlstate",
+    "--output=/dev/null",
+    "--dbname=dbname=appdb connect_timeout=5 options='-c default_transaction_read_only=on"
+    " -c statement_timeout=5000 -c client_min_messages=error -c log_min_messages=panic'",
+    "--command=SELECT 1",
 )
 
 
@@ -98,6 +132,9 @@ def prepared() -> tuple[FakeIncus, Targets, Units]:
     inspect = ["docker", "inspect", "--type=container", "--format={{.State.Running}}", "--", "web"]
     within.on(inspect, **vars(outputs.output("docker-inspect-running").ended()))
     within.on(["docker", "kill", "--", "web"], 0, b"web\n")
+    for argv, name in ASKED.items():
+        within.on(list(argv), **vars(outputs.output(name).ended()))
+    within.on(list(STATEMENT), 0)
     return fake, targets, table
 
 
@@ -116,6 +153,7 @@ def made(name: str) -> tuple[FakeIncus, Primitive[Any], Any, Callable[[], Any]]:
 
 def test_the_library_and_the_lint_s_lists_agree() -> None:
     assert set(FAULTS) == set(library.PRIMITIVES) and len(FAULTS) == 16
+    assert set(PROBES) == set(library.PROBES) and len(PROBES) == 7
     assert set(lint.PRIMITIVES) - set(library.PRIMITIVES) == NOT_BUILT
     assert set(library.PRIMITIVES) <= lint.PRIMITIVES
     assert NOT_BUILT == lint.LOAD_PRIMITIVES | set(lint.TOOLS) | lint.UNSUPPORTED
@@ -172,6 +210,54 @@ CLIENT_CALLS = (
     "delete_file",
     "list_directory",
 )
+
+
+@pytest.mark.parametrize("name", sorted(PROBES))
+def test_a_probe_changes_nothing_and_runs_only_the_programs_it_names(name: str) -> None:
+    fake, targets, table = prepared()
+    within = inside(fake, "web")
+    probe = library.probe(name)
+    params = probe.parameters({"node": "web", **PROBES[name]})
+    held, units = state(fake, "web"), copy.deepcopy(table.units)
+    verdict = probe.run(targets, params)
+    assert (verdict.outcome, verdict.reason) == ("passed", None), name
+    assert state(fake, "web") == held and (table.units, table.asked) == (units, [])
+    ran = {asked.argv[0] for asked in within.executions}
+    assert ran <= {program.name for program in probe.requires.programs}, sorted(ran)
+    assert set(verdict.facts) <= probe.reports
+    assert all(type(value) is int or value in probe.words for value in verdict.facts.values())
+    # No command names the library, the lab or a step, where a target's processes show.
+    steps = (*library.PRIMITIVES, *library.PROBES)
+    words = [b"pokus", b"pinka", b"potka", *(one.encode() for one in steps)]
+    for one in within.executions:
+        line = " ".join(one.argv).encode().lower()
+        assert not [word for word in words if word in line], one.argv
+    # The same again gives the same commands and the same verdict.
+    asked = list(within.executions)
+    assert probe.run(targets, params) == verdict
+    assert within.executions[len(asked) :] == asked
+
+
+@pytest.mark.parametrize("name", sorted(PROBES))
+def test_every_error_of_the_client_under_a_probe_is_the_library_s(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probe = library.probe(name)
+    params = probe.parameters({"node": "web", **PROBES[name]})
+    for error in CLIENT_ERRORS:
+        fake, targets, table = prepared()
+        asked: list[str] = []
+        with monkeypatch.context() as patched:
+            for method in CLIENT_CALLS:
+                patched.setattr(incus.Incus, method, refusing(error, asked))
+            with pytest.raises(TargetFailure) as failed:
+                probe.run(targets, params)
+        failure = failed.value
+        assert asked and (str(failure), failure.alias) == (context._failure(error), "web")
+        assert failure.__cause__ is None and failure.__context__ is None
+        text = f"{failure!r} {vars(failure)}"
+        assert MARK not in text and INSTANCES["web"] not in text
+        assert (table.asked, inside(fake, "web").executions) == ([], [])
 
 
 def refusing(error: Exception, asked: list[str]) -> Callable[..., Any]:
@@ -267,7 +353,11 @@ def test_every_program_of_the_library_is_the_service_s_own_or_in_every_golden_im
         "docker": "docker.io",
         "fallocate": "util-linux",
         "findmnt": "util-linux",
+        "id": "coreutils",
         "mkdir": "coreutils",
+        "pg_isready": "postgresql",
+        "psql": "postgresql",
+        "redis-cli": "redis-server",
         "stat": "coreutils",
         "systemctl": "systemd",
         "tc": "iproute2",
@@ -277,6 +367,7 @@ def test_every_program_of_the_library_is_the_service_s_own_or_in_every_golden_im
     # A service's package is one that some golden image carries.
     services = {step.requires.service for step in library.PRIMITIVES.values()} - {None}
     assert services == {"docker.io", "nginx", "postgresql", "redis-server"}
+    assert {step.requires.service for step in library.PROBES.values()} - {None} <= services
     for package in services:
         assert any(blueprint.carries(str(package)) for blueprint in table.blueprints.values())
 
@@ -294,20 +385,15 @@ def test_every_kept_output_is_named_where_tests_read_it_and_all_are_still_writte
     # A file that no test or stand-in names is read by none.
     assert [name for name in outputs.names() if not any(f'"{name}"' in text for text in read)] == []
     assert outputs.manual() == outputs.names()
-    assert len(outputs.names()) == 23
+    assert len(outputs.names()) == 35
 
 
 WRONG: tuple[Any, ...] = (MARK, [MARK], {"key": MARK}, 918273645, f"/{MARK}/../x", None, True)
 
 
 def test_the_views_of_the_release_s_steps_say_what_is_wrong_and_show_no_value() -> None:
-    probes: dict[str, dict[str, Any]] = {
-        "disk_usage_below": {"percent": 90},
-        "inode_usage_below": {"path": "/srv", "percent": 90},
-    }
-    assert set(probes) == set(library.PROBES)
     views = {**LIBRARY.primitives, **LIBRARY.probes}
-    for name, fitting in {**FAULTS, **probes}.items():
+    for name, fitting in {**FAULTS, **PROBES}.items():
         given = {"node": "web", **fitting}
         assert views[name].problem(given) == (), name
         said: list[str] = []

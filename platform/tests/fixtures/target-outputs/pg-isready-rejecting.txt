@@ -1,0 +1,5 @@
+source: manual
+status: 1
+stream: stdout
+---
+/var/run/postgresql:5432 - rejecting connections

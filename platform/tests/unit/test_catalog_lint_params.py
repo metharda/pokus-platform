@@ -22,6 +22,7 @@ ONE = "scenarios/FIXTURE-001/1/scenario.yaml"
 TWO = "scenarios/FIXTURE-002/1/scenario.yaml"
 TRUTH = "scenarios/FIXTURE-001/1/ground_truth.yaml"
 STORE = "blueprints/fixture-store.yaml"
+WEB = "blueprints/fixture-web.yaml"
 MARK = "zq-marked-value"
 
 
@@ -190,6 +191,26 @@ def test_a_step_s_node_is_a_node_of_the_blueprint_whose_image_carries_the_servic
             "inject.0: nginx.corrupt_conf: the golden image of the node db does not carry"
             " nginx, the service it acts on",
         ),
+    ]
+
+
+def test_a_probe_s_node_carries_the_service_the_probe_asks(catalog: Path) -> None:
+    # The release's own probes: one that asks PostgreSQL, on a node of an image without it.
+    release = library_views()
+    assert release.probes["pg_ready"].service == "postgresql"
+    assert found(catalog, release) == []
+    asks = {"probe": "pg_ready", "params": {"node": "web"}}
+    edit_yaml(catalog, ONE, lambda data: data["confirm"].append(asks))
+    edit_yaml(catalog, WEB, lambda data: data["health"].append(asks))
+    confirm = len(_yaml(catalog, ONE)["confirm"]) - 1
+    health = len(_yaml(catalog, WEB)["health"]) - 1
+    said = (
+        "pg_ready: the golden image of the node web does not carry postgresql,"
+        " the service it acts on"
+    )
+    assert found(catalog, release) == [
+        (WEB, "params", f"health.{health}: {said}"),
+        (ONE, "params", f"confirm.{confirm}: {said}"),
     ]
 
 

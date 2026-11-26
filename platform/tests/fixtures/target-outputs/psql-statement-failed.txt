@@ -1,0 +1,5 @@
+source: manual
+status: 1
+stream: stderr
+---
+ERROR:  42P01

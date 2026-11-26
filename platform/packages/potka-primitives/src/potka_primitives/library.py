@@ -34,7 +34,7 @@ PRIMITIVES: Mapping[str, type[Primitive[Any]]] = index(
         *units.PRIMITIVES,
     )
 )
-PROBES: Mapping[str, type[Probe[Any]]] = index((*disk.PROBES,))
+PROBES: Mapping[str, type[Probe[Any]]] = index((*disk.PROBES, *services.PROBES, *units.PROBES))
 
 
 def primitive(name: str) -> Primitive[Any]:

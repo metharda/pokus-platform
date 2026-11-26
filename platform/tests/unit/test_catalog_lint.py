@@ -178,6 +178,11 @@ def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
         (
             "scenarios/FIXTURE-002/1/ground_truth.yaml",
             "params",
+            f"collateral.0: unit_state: {no_node}",
+        ),
+        (
+            "scenarios/FIXTURE-002/1/ground_truth.yaml",
+            "params",
             f"verification.0: disk_usage_below: {no_node}",
         ),
         (
@@ -218,7 +223,8 @@ def test_every_step_names_a_known_primitive_or_probe(catalog: Path) -> None:
         d["confirm"].append({"probe": "nginx_config", "params": {}})
 
     def truth(d: Any) -> None:
-        d["verification"].append({"probe": "unit_state", "params": {}})
+        loaded = {"node": "web", "unit": "nginx.service", "state": "active"}
+        d["verification"].append({"probe": "unit_state", "params": loaded})
         d["verification"].append({"probe": "units_state", "params": {}})
         d["collateral"].insert(0, {"probe": "file_changed", "params": {}})
 
@@ -534,6 +540,8 @@ def shared(golden: str, golden_version: str, version: int, **settings: Any) -> A
         node["components"][0]["settings"].update(settings)
         node["allowed_read_paths"] = web["allowed_read_paths"]
         node["patchable_paths"] = web["patchable_paths"]
+        # A node on another image keeps no probe of the service it left behind.
+        d["health"] = [one for one in d["health"] if one["probe"] != "pg_ready"]
 
     return change
 
@@ -639,6 +647,7 @@ def test_a_shared_derived_image_with_other_components_is_refused(catalog: Path) 
     def moved(d: Any) -> None:
         d["nodes"][0]["golden"] = {"blueprint": "web-nginx-flask", "version": GOLDEN}
         d["nodes"][0]["derived"] = {"name": "fixture-web-app", "version": 1}
+        d["health"] = [one for one in d["health"] if one["probe"] != "pg_ready"]
 
     shutil.rmtree(catalog / "blueprints" / "fixture-store-app")
     edit_yaml(catalog, STORE, moved)

@@ -72,7 +72,15 @@ def test_the_library_has_all_sixteen_faults_and_no_other() -> None:
         "systemd.action",
         "systemd.break_unit",
     ]
-    assert sorted(library.PROBES) == ["disk_usage_below", "inode_usage_below"]
+    assert sorted(library.PROBES) == [
+        "container_state",
+        "disk_usage_below",
+        "inode_usage_below",
+        "pg_query",
+        "pg_ready",
+        "redis_ping",
+        "unit_state",
+    ]
     assert NetNetem.requires == Requires((services.TC,))
     # The daemon's unit is asked for before the daemon is: systemctl is one of its programs.
     assert DockerKillContainer.requires == Requires((units.SYSTEMCTL, services.DOCKER), "docker.io")
@@ -189,6 +197,12 @@ def test_an_interface_that_delays_already_and_an_answer_in_another_form_are_refu
         {"loss_percent": 2.5},
         {"delay_ms": 5, "interface": "lo"},
         {"delay_ms": 5, "jitter_ms": 1},
+        # Never a packet twice, and never below another discipline's class: the model has
+        # no word for either, and the one command it leads to names the root.
+        {"delay_ms": 5, "duplicate_percent": 1},
+        {"delay_ms": 5, "duplicate": "1%"},
+        {"delay_ms": 5, "parent": "1:1"},
+        {"delay_ms": 5, "handle": "10:"},
     ],
 )
 def test_netem_s_parameters_are_a_delay_a_loss_or_both(wrong: dict[str, Any]) -> None:
