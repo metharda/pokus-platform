@@ -96,6 +96,10 @@ schemas: ## Write the JSON Schemas of the catalog's files and of the tool regist
 tools: ## Write what the tool registry (tools/registry/) is compiled to: the model's tool schemas, the policy data, docs/tools.md
 	$(CHECK) generated --write tools
 
+.PHONY: primitives
+primitives: ## Write docs/primitives.md, the page of the fault primitives and probes, from the library
+	$(CHECK) generated --write primitives
+
 .PHONY: golden-images
 golden-images: ## Write infra-data/golden-images.json from pokus-infrastructure's blueprints at INFRA_PIN (INFRA=<path>)
 	$(NEED_INFRA)

@@ -83,7 +83,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     n.add_argument(
         "--write",
-        choices=["schemas", "tools", "golden-images", "incus-api"],
+        choices=["schemas", "tools", "primitives", "golden-images", "incus-api"],
         help="write the files of one kind instead of comparing every file",
     )
     i = checks.add_parser("incus-sources", help="fetch Incus's two files of the API extract")

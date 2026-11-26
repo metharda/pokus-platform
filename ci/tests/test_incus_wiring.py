@@ -28,13 +28,17 @@ FETCH = (
     " INCUS=<path> fetches both at the commit that"
     " platform/tests/fixtures/incus-api/source.json names"
 )
-FILES = "10 generated file(s) match a fresh generation"
+FILES = "11 generated file(s) match a fresh generation"
 
 
 def with_tools(root: Path) -> None:
-    """Give the tree ROOT this repository's tool registry and what it is compiled to."""
+    """Give the tree ROOT this repository's tool registry and the files written from code.
+
+    They are what the registry is compiled to, and the page of the primitives.
+    """
     shutil.copytree(ROOT / generated.REGISTRY, root / generated.REGISTRY)
     assert generated.write(root, "tools").status == "passed"
+    assert generated.write(root, "primitives").status == "passed"
 
 
 def test_the_extract_is_compared_with_a_fresh_one_made_from_incus_s_files(tmp_path: Path) -> None:
@@ -88,7 +92,7 @@ def test_without_incus_s_files_only_the_extract_s_comparison_is_skipped(tmp_path
     assert (outcome.status, outcome.lines) == (
         "skipped",
         [
-            f"9 generated file(s) match a fresh generation; {TABLE} was not compared:"
+            f"10 generated file(s) match a fresh generation; {TABLE} was not compared:"
             " no pokus-infrastructure checkout (INFRA=<path>)"
         ],
     )

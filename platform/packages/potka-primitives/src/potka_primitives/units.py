@@ -194,12 +194,18 @@ class SystemdAction(Primitive[ActionParams]):
 
 
 def _service(unit: str) -> str:
+    """A service."""
     if not unit.endswith(".service"):
         raise ValueError("the unit is a service")
     return unit
 
 
 def _command(line: str) -> str:
+    """One line of words of letters, digits and ``/._=:@,+-``, one blank between them.
+
+    The first word is a program's absolute path in its normal form, and no word is a
+    shell.
+    """
     if _COMMAND.fullmatch(line) is None:
         raise ValueError(
             "a command is one line of words of letters, digits and /._=:@,+- with one blank"

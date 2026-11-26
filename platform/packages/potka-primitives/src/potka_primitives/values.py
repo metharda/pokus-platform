@@ -42,6 +42,11 @@ def below(path: str, root: str) -> bool:
 
 
 def _path(value: str) -> str:
+    """An absolute path in its normal form.
+
+    Of printable characters without a blank, not ``/`` itself, and not in ``/dev``,
+    ``/proc`` or ``/sys``.
+    """
     if (
         _PATH.fullmatch(value) is None
         or posixpath.normpath(value) != value
@@ -57,6 +62,10 @@ def _path(value: str) -> str:
 
 
 def _unit(value: str) -> str:
+    """A unit's name that ends in ``.service``, ``.socket`` or ``.timer``.
+
+    Of letters, digits and ``@._:-``; a template's unit has its instance.
+    """
     if _UNIT.fullmatch(value) is None or value.startswith("-") or "@." in value:
         raise ValueError(
             "a unit's name is of letters, digits and @._:- and ends in .service, .socket or"
@@ -66,6 +75,7 @@ def _unit(value: str) -> str:
 
 
 def _unprotected(value: str) -> str:
+    """No unit of systemd's own or of the lab's channel into a target."""
     if value.startswith(PROTECTED_UNITS):
         raise ValueError("a unit of systemd's own or of the lab's channel is not a fault's")
     return value

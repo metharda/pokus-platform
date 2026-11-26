@@ -13,6 +13,9 @@ deployed release needs no generation step:
   (``platform/policy/tools/data.json``, ``platform/policy/registry/data.json``)
   and the page that lists the tools (``platform/docs/tools.md``); ``make
   tools`` writes them;
+* the page that lists the fault primitives and probes
+  (``platform/docs/primitives.md``, from potka-primitives' classes); ``make
+  primitives`` writes it;
 * the golden images table (``platform/infra-data/golden-images.json``, from
   pokus-infrastructure's blueprints at INFRA_PIN; ``make golden-images``
   writes it; ``potka_ci.golden_images``);
@@ -32,8 +35,8 @@ is not at hand everywhere: two files of Incus's repository, which ``make
 incus-sources`` fetches. Without them only that check is skipped, by its
 name; :func:`run` compares every other generated file all the same.
 
-potka-core and potka-tools are imported only when the check runs, so the
-other checks run without them.
+potka-core, potka-tools and potka-primitives are imported only when the
+check runs, so the other checks run without them.
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ MODEL_TOOLS = TOOL_SCHEMAS / "model-tools.json"
 POLICY_TOOLS = Path("platform") / "policy" / "tools" / "data.json"
 POLICY_REGISTRY = Path("platform") / "policy" / "registry" / "data.json"
 TOOLS_PAGE = Path("platform") / "docs" / "tools.md"
+PRIMITIVES_PAGE = Path("platform") / "docs" / "primitives.md"
 # What the tool registry is compiled to.
 COMPILED = (MODEL_TOOLS, POLICY_TOOLS, POLICY_REGISTRY, TOOLS_PAGE)
 # The make target that writes a file (a schema: schemas).
@@ -59,6 +63,7 @@ TARGETS = {
     golden_images.TABLE: "golden-images",
     incus_api.EXTRACT: "incus-api",
     **dict.fromkeys(COMPILED, "tools"),
+    PRIMITIVES_PAGE: "primitives",
 }
 # What the extract's directory holds besides the extract: its source and what says so.
 BESIDE_EXTRACT = {incus_api.EXTRACT, incus_api.SOURCE, incus_api.README}
@@ -68,7 +73,7 @@ FETCH = (
     "when one of Incus's two files is missing or is not the recorded one: make incus-sources"
     f" INCUS=<path> fetches both at the commit that {incus_api.SOURCE.as_posix()} names"
 )
-Kind = Literal["schemas", "tools", "golden-images", "incus-api"]
+Kind = Literal["schemas", "tools", "primitives", "golden-images", "incus-api"]
 
 
 def catalog_schemas() -> dict[Path, str]:
@@ -126,6 +131,18 @@ def tool_files(root: Path) -> dict[Path, str]:
     }
 
 
+def primitives_page() -> dict[Path, str]:
+    """The page of the library's fault primitives and probes, by its path.
+
+    Raises:
+        ValueError: The page cannot show something of a step; the error
+            names it.
+    """
+    from potka_primitives import reference
+
+    return {PRIMITIVES_PAGE: reference.documentation()}
+
+
 def _write(root: Path, files: dict[Path, str]) -> Outcome:
     for path, text in files.items():
         (root / path).parent.mkdir(parents=True, exist_ok=True)
@@ -138,7 +155,8 @@ def write(root: Path, kind: Kind, infra: Path | None = None, incus: Path | None 
 
     Args:
         root: The working tree.
-        kind: ``schemas``, ``tools``, ``golden-images`` or ``incus-api``.
+        kind: ``schemas``, ``tools``, ``primitives``, ``golden-images`` or
+            ``incus-api``.
         infra: The pokus-infrastructure checkout at the pin (for the table).
         incus: The directory with Incus's two files (for the extract).
 
@@ -152,6 +170,11 @@ def write(root: Path, kind: Kind, infra: Path | None = None, incus: Path | None 
             return _write(root, tool_files(root))
         except ValueError as exc:
             return Outcome("failed", [f"{REGISTRY.as_posix()}: {exc}"])
+    if kind == "primitives":
+        try:
+            return _write(root, primitives_page())
+        except ValueError as exc:
+            return Outcome("failed", [f"{PRIMITIVES_PAGE.as_posix()}: {exc}"])
     if kind == "incus-api":
         if incus is None:
             return Outcome("skipped", [NO_INCUS])
@@ -221,7 +244,7 @@ def extract(root: Path, incus: Path | None = None) -> Outcome:
 
 
 def run(root: Path, infra: Path | None = None) -> Outcome:
-    """Compare the schemas, the registry's compiled files and the table with a fresh generation.
+    """Compare the schemas, the compiled files, the two pages and the table with a fresh generation.
 
     Args:
         root: The working tree.
@@ -230,7 +253,8 @@ def run(root: Path, infra: Path | None = None) -> Outcome:
     Returns:
         The outcome: failed when a file differs from its fresh generation,
         is missing, cannot be read or generated (the registry's compiled
-        files when the registry cannot be loaded), or lies in a generated
+        files when the registry cannot be loaded, the page of the
+        primitives when it cannot show something of a step), or lies in a generated
         directory (the extract's among them) without a generator; skipped
         when nothing failed and the table was not compared for want of a
         checkout. The extract itself is :func:`extract`'s to compare.
@@ -244,6 +268,12 @@ def run(root: Path, infra: Path | None = None) -> Outcome:
         findings.append(f"{REGISTRY.as_posix()}: {exc}")
         # Without a registry its files have no fresh generation: each must still be there.
         expected.update(dict.fromkeys(COMPILED))
+    try:
+        expected.update(primitives_page())
+    except ValueError as exc:
+        findings.append(f"{PRIMITIVES_PAGE.as_posix()}: {exc}")
+        # A page that cannot be written has no fresh generation: it must still be there.
+        expected[PRIMITIVES_PAGE] = None
     if infra is not None:
         try:
             expected[golden_images.TABLE] = golden_images.generate(root, infra)

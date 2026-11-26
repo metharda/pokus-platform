@@ -76,6 +76,7 @@ COMMAND_PLACES: Final = (
 
 
 def _text(value: str) -> str:
+    """Text that has a UTF-8 form and no NUL."""
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
@@ -87,12 +88,17 @@ def _text(value: str) -> str:
 
 
 def _line(value: str) -> str:
+    """One line of text, without a line's end."""
     if any(character in value for character in "\n\r\0") or _text(value) != value:
         raise ValueError("a line is text without a line's end")
     return value
 
 
 def _no_command_place(path: str) -> str:
+    """No file in a place whose files are run, or name commands that are run.
+
+    The units of systemd, cron's tables, what a login or a boot reads.
+    """
     if any(below(path, place) for place in COMMAND_PLACES):
         raise ValueError("a file that is run, or that names commands that are, is not written")
     return path
@@ -104,6 +110,7 @@ def lines_of(text: str) -> list[str]:
 
 
 def _no_execute(mode: str) -> str:
+    """No execute bit."""
     if int(mode, 8) & EXECUTE:
         raise ValueError("a file a fault writes has no execute bit")
     return mode
@@ -229,7 +236,9 @@ class ReplaceLine(Strict):
 
     edit: Literal["replace_line"]
     line: Line
+    """The line as it is, without its end; exactly one line of the file equals it."""
     replacement: Line
+    """The line that takes its place."""
 
 
 class InsertAfter(Strict):
@@ -237,7 +246,9 @@ class InsertAfter(Strict):
 
     edit: Literal["insert_after"]
     line: Line
+    """The line as it is, without its end; exactly one line of the file equals it."""
     text: Line
+    """The new line that follows it."""
 
 
 class DeleteLine(Strict):
@@ -245,6 +256,7 @@ class DeleteLine(Strict):
 
     edit: Literal["delete_line"]
     line: Line
+    """The line as it is, without its end; exactly one line of the file equals it."""
 
 
 Edit = Annotated[SetKey | ReplaceLine | InsertAfter | DeleteLine, Field(discriminator="edit")]
@@ -307,7 +319,7 @@ class MutateParams(Params):
     path: WritablePath
     """The file, which is there."""
     edits: Annotated[tuple[Edit, ...], Field(min_length=1, max_length=MOST_EDITS)]
-    """The edits."""
+    """The edits, each made on what the one before it left."""
 
 
 def read_text(node: Node, path: str) -> str:
@@ -375,6 +387,7 @@ class PermissionParams(Params):
 
     @model_validator(mode="after")
     def _something(self) -> PermissionParams:
+        """One of ``mode``, ``uid`` and ``gid`` is given."""
         if self.mode is None and self.uid is None and self.gid is None:
             raise ValueError("one of mode, uid and gid is given")
         return self

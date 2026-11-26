@@ -231,12 +231,14 @@ def with_upstream(text: str, upstream: str) -> str:
 
 
 def _of_nginx(path: str) -> str:
+    """A file below ``/etc/nginx``."""
     if not below(path, NGINX) or path == NGINX:
         raise ValueError("the file lies below /etc/nginx")
     return path
 
 
 def _host(value: str) -> str:
+    """A host's name of letters, digits, hyphens and dots, not an address."""
     # "unix" before a colon is how nginx is told a socket, not a host.
     if _HOST.fullmatch(value) is None or value == "unix":
         raise ValueError("a host is a name of letters, digits, hyphens and dots, not an address")
@@ -244,6 +246,7 @@ def _host(value: str) -> str:
 
 
 def _upstream(value: str) -> str:
+    """A host or an address, a colon and a port."""
     matched = _UPSTREAM.fullmatch(value)
     if matched is None or not 1 <= int(matched[2]) <= 65535 or value.startswith("unix:"):
         raise ValueError("an upstream is a host or an address, a colon and a port")
@@ -259,14 +262,19 @@ class CorruptParams(Params):
     """A configuration file and the defect it gets."""
 
     path: ConfigPath
-    """The file."""
+    """The configuration file."""
     defect: Literal["missing_semicolon", "unclosed_block", "unknown_directive", "bad_upstream_host"]
-    """The defect."""
+    """What is done to the file: the first semicolon that a closing brace or the file's end
+    follows is taken away (``missing_semicolon``); the last closing brace is taken away
+    (``unclosed_block``); the first simple directive's name gets its last letter twice
+    (``unknown_directive``); the first proxied address, or else the first upstream server,
+    gets another host (``bad_upstream_host``)."""
     host: Annotated[str, AfterValidator(_host)] | None = None
     """The host that is put in, for ``bad_upstream_host`` and for no other defect."""
 
     @model_validator(mode="after")
     def _host_with_its_defect(self) -> CorruptParams:
+        """``host`` is given with the defect ``bad_upstream_host`` and with no other."""
         if (self.host is not None) != (self.defect == "bad_upstream_host"):
             raise ValueError("host is given with the defect bad_upstream_host and with no other")
         return self
@@ -330,7 +338,7 @@ class UpstreamParams(Params):
     """A configuration file and where its proxied requests go."""
 
     path: ConfigPath
-    """The file."""
+    """The configuration file."""
     upstream: Annotated[str, AfterValidator(_upstream)]
     """The host or address and the port that requests are passed to afterwards."""
 

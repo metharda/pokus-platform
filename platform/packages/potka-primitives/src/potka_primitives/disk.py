@@ -211,6 +211,7 @@ class DiskFill(_Fill[FillParams]):
 
 
 def _of_postgresql(path: str) -> str:
+    """A file below ``/var/lib/postgresql``."""
     if not below(path, POSTGRESQL) or path == POSTGRESQL:
         raise ValueError("the file lies below /var/lib/postgresql")
     return path

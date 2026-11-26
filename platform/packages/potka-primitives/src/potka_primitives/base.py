@@ -131,10 +131,17 @@ class Strict(BaseModel):
     """A model of a step's parameters or of a part of them.
 
     Unknown keys are refused, nothing is converted, and it is frozen. An
-    error of such a model never shows the value that was given.
+    error of such a model never shows the value that was given. The words
+    that stand beside a field are its description in the model's schema.
     """
 
-    model_config = ConfigDict(extra="forbid", frozen=True, strict=True, hide_input_in_errors=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        strict=True,
+        hide_input_in_errors=True,
+        use_attribute_docstrings=True,
+    )
 
 
 class Params(Strict):

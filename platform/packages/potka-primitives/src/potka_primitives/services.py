@@ -112,13 +112,17 @@ class NetemParams(Params):
 
     @model_validator(mode="after")
     def _something(self) -> NetemParams:
+        """One of ``delay_ms`` and ``loss_percent`` is given."""
         if self.delay_ms is None and self.loss_percent is None:
             raise ValueError("one of delay_ms and loss_percent is given")
         return self
 
 
 class NetNetem(Primitive[NetemParams]):
-    """``net.netem``: delay or drop what a node sends on its network interface."""
+    """``net.netem``: delay or drop what a node sends on its network interface.
+
+    The interface is ``eth0``.
+    """
 
     name = "net.netem"
     version = 1
@@ -249,12 +253,17 @@ class DockerStopDaemon(Primitive[DaemonParams]):
 
 
 def _postgresql(unit: str) -> str:
+    """PostgreSQL's unit: ``postgresql.service``, or one cluster's.
+
+    A cluster's unit is ``postgresql@<version>-<cluster>.service``.
+    """
     if _POSTGRESQL.fullmatch(unit) is None:
         raise ValueError("the unit is PostgreSQL's: postgresql.service or one cluster's")
     return unit
 
 
 def _redis(unit: str) -> str:
+    """The unit ``redis-server.service`` and no other."""
     if unit != "redis-server.service":
         raise ValueError("the unit is redis-server.service")
     return unit
@@ -305,7 +314,7 @@ class RedisUnitParams(Params):
     """Redis's unit."""
 
     unit: Annotated[Unit, AfterValidator(_redis)] = "redis-server.service"
-    """``redis-server.service``."""
+    """Redis's unit."""
 
 
 class RedisStop(_Stop[RedisUnitParams]):
@@ -318,6 +327,7 @@ class RedisStop(_Stop[RedisUnitParams]):
 
 
 def _hba(path: str) -> str:
+    """A cluster's ``/etc/postgresql/<version>/<cluster>/pg_hba.conf``."""
     if _HBA.fullmatch(path) is None:
         raise ValueError("the file is a cluster's /etc/postgresql/<version>/<cluster>/pg_hba.conf")
     return path
@@ -398,6 +408,7 @@ class HbaParams(Params):
 
     @model_validator(mode="after")
     def _one_cluster(self) -> HbaParams:
+        """The unit is the cluster's whose file it is, or ``postgresql.service``."""
         # A cluster's own unit is named after it: postgresql@<version>-<cluster>.service.
         of_unit = self.unit.removeprefix("postgresql").removesuffix(".service")
         _, _, _, version, cluster, _ = self.path.split("/")
@@ -570,6 +581,7 @@ class PgReady(Probe[ReadyParams]):
 
 
 def _select(query: str) -> str:
+    """One ``SELECT`` statement on one line, of printable characters, without a semicolon."""
     if _SELECT.fullmatch(query) is None:
         raise ValueError(
             "a query is one SELECT statement of printable characters, without a semicolon"
