@@ -92,7 +92,7 @@ COMMANDS = [tool for tool in REGISTRY.tools if tool.command is not None]
 
 
 def test_the_registry_holds_the_tools_a_run_needs_each_with_its_risk() -> None:
-    assert REGISTRY.version == 1
+    assert REGISTRY.version == 2
     assert len(REGISTRY.hash) == 64
     by_name = {tool.name: tool for tool in REGISTRY.tools}
     assert len(by_name) == len(REGISTRY.tools) == 41
@@ -109,7 +109,13 @@ def test_the_registry_holds_the_tools_a_run_needs_each_with_its_risk() -> None:
     assert [tool.name for tool in COMMANDS if tool.command and tool.command.on != "node"] == [
         "http_probe"
     ]
-    assert all(tool.version == 1 for tool in REGISTRY.tools)
+    # A tool's version rises, and the registry's with it, when what a model sees of the
+    # tool or what the tool does changes: one tool's description has, once.
+    assert {tool.name: tool.version for tool in REGISTRY.tools if tool.version != 1} == {
+        "nginx_test_config": 2
+    }
+    # Every rise of a tool's version raises the registry's, so no tool is ahead of it.
+    assert REGISTRY.version >= max(tool.version for tool in REGISTRY.tools)
 
 
 def test_every_tool_and_every_argument_says_to_a_model_what_it_is() -> None:
@@ -126,11 +132,10 @@ def test_the_configuration_check_says_what_it_may_leave_behind() -> None:
     # missing, though the tool is read-only: a model is told so.
     described = REGISTRY.tool("nginx_test_config")
     assert described is not None
-    assert (described.risk, described.mutating, described.version) == ("read", False, 1)
+    assert (described.risk, described.mutating, described.version) == ("read", False, 2)
     assert described.description.endswith(
         " nginx -t may create or change files in nginx's own runtime directories."
     )
-    assert REGISTRY.version == 1
 
 
 def test_every_category_is_a_label_of_the_fixture_taxonomy() -> None:

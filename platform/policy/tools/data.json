@@ -167,7 +167,7 @@
     "applicable_categories": [],
     "mutating": false,
     "risk": "read",
-    "version": 1
+    "version": 2
   },
   "pg_activity_summary": {
     "applicable_categories": [],
