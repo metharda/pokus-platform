@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 PATH = Path("/etc/pinka/platform/endpoints.toml")
 Absolute = Annotated[str, Field(pattern=r"^/")]
 Address = Annotated[str, Field(pattern=r"^[0-9.]+:[0-9]{1,5}$")]
+Bytes = Annotated[int, Field(ge=1)]
 
 
 class _Strict(BaseModel):
@@ -71,10 +72,20 @@ class Opa(_Strict):
 
 
 class Incus(_Strict):
-    """The Incus API, certificates, projects and run-network helper."""
+    """The Incus API, certificates, disk budget, projects and run-network helper.
+
+    The three sizes are in bytes: the ``bench`` and the ``build`` project's
+    disk limit (the cap on the root disks of a project's instances, its
+    custom volumes and the state volumes of its virtual machines; the
+    ``build`` project's is shared with infra's own image builds), and the
+    size of every image volume of the pool, so the largest image it takes.
+    """
 
     url: str
     cert_dir: Absolute
+    bench_limits_disk: Bytes
+    build_limits_disk: Bytes
+    pool_volume_size: Bytes
     projects: tuple[str, ...]
     run_network_socket: Absolute
     cpuset_targets: str | None = None

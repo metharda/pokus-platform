@@ -686,6 +686,9 @@ def test_a_client_has_a_certificate_or_a_transport_and_a_project_of_the_platform
     endpoints = Endpoints(
         url=URL,
         cert_dir=str(tmp_path),
+        bench_limits_disk=85899345920,
+        build_limits_disk=42949672960,
+        pool_volume_size=10737418240,
         projects=("bench", "build"),
         run_network_socket="/run/x.sock",
     )

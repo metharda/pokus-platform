@@ -92,13 +92,13 @@ MODELS: tuple[Model, ...] = (
         "endpoints.toml",
         Path("contract") / "endpoints.schema.json",
         "potka_core.endpoints:Endpoints",
-        "ac0b3647ad8580da6e68a49e63a3291b5a78450e14e8599d5ced092c4c181275",
+        "e3387b66a78e123196f266646968287ca2ba6b160d5fc070c7f092092794dc85",
     ),
     Model(
         "a golden image's entry in the fingerprint",
         Path("contract") / "records" / "fingerprint.schema.json",
         "potka_core.images:GoldenEntry",
-        "99794f02b5ce8a0e1258adf3a031e0c77de9a7ca3e719b23e8ccbfbd4027975b",
+        "bfcb86b3ae782611b4718aa09a43625b9fd921907b9d2731d32f3b9cab48f71c",
         part="golden_image",
     ),
 )

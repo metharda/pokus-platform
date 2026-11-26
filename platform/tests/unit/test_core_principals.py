@@ -45,6 +45,13 @@ def test_the_files_load() -> None:
     assert endpoints.opa.decision_path == "/v1/data/potka/action/decision"
     assert endpoints.incus is not None
     assert endpoints.incus.cpuset_targets == "8-15"
+    # The disk budget, in bytes: the two projects' limits and the pool's volume size.
+    budget = endpoints.incus
+    assert (budget.bench_limits_disk, budget.build_limits_disk, budget.pool_volume_size) == (
+        85899345920,
+        42949672960,
+        10737418240,
+    )
     assert endpoints.gpu is not None
 
 
@@ -144,6 +151,15 @@ def test_a_principals_file_that_contradicts_itself_is_refused(change: Any, messa
         ("otlp_grpc = 4317", "otlp_grpc = 70000"),
         ("[lab]", "[laboratory]"),
         ('cert_dir = "/etc/pinka/incus"', 'cert_dir = "etc/pinka/incus"'),
+        # The disk budget's three keys are required, each a whole number of at least 1.
+        ("bench_limits_disk = 85899345920\n", ""),
+        ("build_limits_disk = 42949672960\n", ""),
+        ("pool_volume_size = 10737418240\n", ""),
+        ("bench_limits_disk = 85899345920", "bench_limits_disk = 0"),
+        ("bench_limits_disk = 85899345920", "bench_limits_disk = -85899345920"),
+        ("build_limits_disk = 42949672960", 'build_limits_disk = "42949672960"'),
+        ("pool_volume_size = 10737418240", "pool_volume_size = 10737418240.0"),
+        ("pool_volume_size = 10737418240", "pool_volume_size = true"),
         ('mode = "local"', 'mode = "local"\nunknown = 1'),
     ],
 )
