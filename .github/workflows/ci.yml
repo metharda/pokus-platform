@@ -117,7 +117,9 @@ jobs:
         with:
           version: "0.12.23"
           enable-cache: false
-      - run: make setup generated INFRA=../../pokus-infrastructure
+      # The Incus API extract is compared with one made from Incus's own files,
+      # fetched from its repository at the commit the extract's source names.
+      - run: make setup incus-sources generated INFRA=../../pokus-infrastructure INCUS=../../incus-sources
 
   contract:
     runs-on: ubuntu-24.04

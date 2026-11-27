@@ -17,7 +17,12 @@ It checks, with a checkout of pokus-infrastructure:
 * the PostgreSQL service of the workflow's ``test`` job is the lab's server:
   the image, tag and digest of the postgres row of
   ``docs/reference/versions.md`` there;
-* the PyYAML this check runs with is the version the project pins.
+* the PyYAML this check runs with is the version the project pins;
+* the Incus API extract of the tests is made from the Incus version of
+  every row of the package ``incus`` in ``docs/reference/versions.md``
+  there (a row whose cell is anything but quoted versions this check
+  can read, each with its architecture where the page names one, fails
+  the check: a value that is not verified yet among them).
 
 potka-core is imported only by the model comparison, so the other checks
 run without it.
@@ -41,6 +46,7 @@ from typing import Any, NamedTuple
 import jsonschema
 import yaml
 
+from potka_ci import incus_api
 from potka_ci.outcome import Outcome
 from potka_ci.repo import GitError, git, git_ok, stage_release
 
@@ -86,13 +92,13 @@ MODELS: tuple[Model, ...] = (
         "endpoints.toml",
         Path("contract") / "endpoints.schema.json",
         "potka_core.endpoints:Endpoints",
-        "ac0b3647ad8580da6e68a49e63a3291b5a78450e14e8599d5ced092c4c181275",
+        "e3387b66a78e123196f266646968287ca2ba6b160d5fc070c7f092092794dc85",
     ),
     Model(
         "a golden image's entry in the fingerprint",
         Path("contract") / "records" / "fingerprint.schema.json",
         "potka_core.images:GoldenEntry",
-        "99794f02b5ce8a0e1258adf3a031e0c77de9a7ca3e719b23e8ccbfbd4027975b",
+        "bfcb86b3ae782611b4718aa09a43625b9fd921907b9d2731d32f3b9cab48f71c",
         part="golden_image",
     ),
 )
@@ -275,6 +281,8 @@ def database_image(root: Path, infra: Path) -> tuple[list[str], list[str]]:
         text = (infra / VERSIONS).read_text(encoding="utf-8")
     except OSError:
         return [f"{VERSIONS.as_posix()} is missing in the pokus-infrastructure checkout"], []
+    except UnicodeDecodeError:
+        return [f"{VERSIONS.as_posix()} of the pokus-infrastructure checkout is not UTF-8"], []
     rows = [line.strip() for line in text.splitlines() if VERSIONS_POSTGRES_RE.match(line.strip())]
     if len(rows) != 1:
         return [f"{VERSIONS.as_posix()} has {len(rows)} rows for postgres, not one"], []
@@ -291,6 +299,61 @@ def database_image(root: Path, infra: Path) -> tuple[list[str], list[str]]:
         where = VERSIONS.as_posix()
         return [f"the test job's PostgreSQL is {image}, but the lab's ({where}) is {lab}"], []
     return [], [f"the test job's PostgreSQL is the lab's ({VERSIONS.as_posix()}): {lab}"]
+
+
+# A row of the package incus: the release, the package, and the cell of its versions.
+VERSIONS_INCUS_RE = re.compile(r"^\|(?P<release>[^|]*)\|\s*incus\s*\|(?P<pins>[^|]*)\|")
+QUOTED_RE = re.compile(r"`([^`]*)`")
+# A package version: an epoch, Incus's version, the package's own revision.
+INCUS_PIN_RE = re.compile(r"(?:\d+:)?(?P<version>\d+(?:\.\d+)+)(?:-[A-Za-z0-9.]+)*")
+# A cell of versions: each one quoted, with its architecture after it where the page names
+# one, and commas between them.
+PIN_CELL_RE = re.compile(r"`[^`]*`(?:\s*\([a-z0-9_]+\))?(?:\s*,\s*`[^`]*`(?:\s*\([a-z0-9_]+\))?)*")
+
+
+def incus_version(root: Path, infra: Path) -> tuple[list[str], list[str]]:
+    """Compare the Incus version of the API extract with the lab's.
+
+    Args:
+        root: The working tree.
+        infra: The pokus-infrastructure checkout.
+
+    Returns:
+        The findings, and the lines to print when there is none.
+    """
+    where = VERSIONS.as_posix()
+    try:
+        ours = incus_api.read_source(root).version
+        text = (infra / VERSIONS).read_text(encoding="utf-8")
+    except incus_api.ExtractError as exc:
+        return exc.problems, []
+    except OSError:
+        return [f"{where} is missing in the pokus-infrastructure checkout"], []
+    except UnicodeDecodeError:
+        return [f"{where} of the pokus-infrastructure checkout is not UTF-8"], []
+    rows = [m for m in map(VERSIONS_INCUS_RE.match, map(str.strip, text.splitlines())) if m]
+    if not rows:
+        return [f"{where} has no row of the package incus to compare the extract's Incus with"], []
+    pins: list[str] = []
+    unread: list[str] = []
+    for row in rows:
+        cell = row.group("pins").strip()
+        versions = [INCUS_PIN_RE.fullmatch(pin) for pin in QUOTED_RE.findall(cell)]
+        # A cell of another form holds something that is not read: a value that is not
+        # verified yet, a version without its quotes, an architecture without its version.
+        if PIN_CELL_RE.fullmatch(cell) is None or not all(versions):
+            shown = cell or "an empty cell"
+            unread.append(f"{where}: the incus version of {row.group('release').strip()}: {shown}")
+        pins += [version.group("version") for version in versions if version]
+    if unread:
+        return [f"{line} is not one this check can read" for line in unread], []
+    if set(pins) != {ours}:
+        theirs = ", ".join(sorted(set(pins)))
+        return [
+            f"the Incus API extract is of Incus {ours}, but {where} pins {theirs}:"
+            f" make a new extract ({incus_api.SOURCE.as_posix()}, make incus-api)"
+        ], []
+    return [], [f"the Incus API extract is of Incus {ours}, as {where} pins ({len(rows)} rows)"]
 
 
 def run(root: Path, infra: Path | None) -> Outcome:
@@ -357,6 +420,11 @@ def run(root: Path, infra: Path | None) -> Outcome:
         findings.append(f"PyYAML {ours} here, but pokus-infrastructure pins {pinned}")
     else:
         lines.append(f"PyYAML {ours}, as pokus-infrastructure pins")
+    found, shown = incus_version(root, infra)
+    # What the page's first reading reported (a page that is missing or is not UTF-8) is
+    # not said twice.
+    findings += [finding for finding in found if finding not in findings]
+    lines += shown
     if findings:
         return Outcome("failed", findings)
     return Outcome("passed", lines)

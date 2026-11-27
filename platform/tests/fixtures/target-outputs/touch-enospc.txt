@@ -1,0 +1,5 @@
+source: manual
+status: 1
+stream: stderr
+---
+touch: cannot touch 'spool0001998': No space left on device

@@ -1,0 +1,37 @@
+# Tools that are never carried out. They are named here so that a call of one is denied
+# for what it is.
+
+- name: remove_package
+  version: 1
+  description: "Remove an installed package from a node."
+  risk: forbidden
+  mutating: true
+  applicable_categories: []
+
+- name: manage_user
+  version: 1
+  description: "Add, change or remove a user account or its rights on a node."
+  risk: forbidden
+  mutating: true
+  applicable_categories: []
+
+- name: flush_firewall
+  version: 1
+  description: "Delete a node's firewall rules."
+  risk: forbidden
+  mutating: true
+  applicable_categories: []
+
+- name: remove_path
+  version: 1
+  description: "Delete files or directories anywhere on a node."
+  risk: forbidden
+  mutating: true
+  applicable_categories: []
+
+- name: reboot
+  version: 1
+  description: "Restart or shut down a node."
+  risk: forbidden
+  mutating: true
+  applicable_categories: []

@@ -1,0 +1,5 @@
+source: manual
+status: 1
+stream: stderr
+---
+Error response from daemon: No such container: web

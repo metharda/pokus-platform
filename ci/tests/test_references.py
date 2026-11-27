@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from conftest import Repo
 
@@ -103,3 +105,27 @@ def test_unreadable_files_are_named_and_links_are_not_followed(repo: Repo) -> No
     outcome = references.run(repo.path)
     assert outcome.status == "warning"
     assert "blob.bin: not checked (not UTF-8 text)" in outcome.lines
+
+
+def test_a_shallow_checkout_fails(repo: Repo, tmp_path: Path) -> None:
+    # The message with the reference is the one a shallow checkout lacks.
+    sha = repo.commit(f"A change\n\n{SECTION}")
+    repo.commit("Second")
+    finding = f"commit {sha[:12]}: message line 3:5: section-sign"
+    whole, shallow = tmp_path / "whole", tmp_path / "shallow"
+    repo.git("clone", "-q", f"file://{repo.path}", str(whole))
+    repo.git("clone", "-q", "--depth", "1", f"file://{repo.path}", str(shallow))
+    assert references.run(whole).lines == [finding]
+    outcome = references.run(shallow)
+    assert outcome.status == "failed"
+    assert outcome.lines == ["a shallow checkout: fetch the whole history"]
+
+
+def test_a_checkout_that_is_not_shallow_is_read(repo: Repo, tmp_path: Path) -> None:
+    # A repository without a commit, and a second working tree of a whole one.
+    empty, linked = tmp_path / "empty", tmp_path / "linked"
+    repo.git("init", "-q", str(empty))
+    (empty / "a.txt").write_text("clean\n", encoding="utf-8")
+    repo.git("worktree", "add", "-q", "--detach", str(linked))
+    assert references.run(empty).lines == ["references: 1 file(s) and 0 commit message(s) checked"]
+    assert references.run(linked).status == "passed"

@@ -18,7 +18,18 @@ from collections.abc import Sequence
 from functools import partial
 from pathlib import Path
 
-from potka_ci import build, commits, contract, gate, generated, privacy, references, todos
+from potka_ci import (
+    build,
+    command_path,
+    commits,
+    contract,
+    gate,
+    generated,
+    incus_api,
+    privacy,
+    references,
+    todos,
+)
 from potka_ci.outcome import Outcome
 from potka_ci.push import SHA_RE, run_on_push
 from potka_ci.repo import GitError, git
@@ -66,13 +77,22 @@ def _parser() -> argparse.ArgumentParser:
     n = checks.add_parser("generated", help="the committed generated files are up to date")
     n.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
     n.add_argument(
+        "--incus",
+        type=Path,
+        help="the directory with Incus's two files; without it the extract is not compared",
+    )
+    n.add_argument(
         "--write",
-        choices=["schemas", "golden-images"],
+        choices=["schemas", "tools", "primitives", "golden-images", "incus-api"],
         help="write the files of one kind instead of comparing every file",
     )
+    i = checks.add_parser("incus-sources", help="fetch Incus's two files of the API extract")
+    i.add_argument("destination", type=Path, help="the directory to write them into")
+    checks.add_parser("command-path", help="no shell where a command is made or carried")
     checks.add_parser("verify-todos", help="list the open verification markers")
     g = checks.add_parser("gate", help="every check once, with one summary line")
     g.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
+    g.add_argument("--incus", type=Path, help="the directory with Incus's two files")
     g.add_argument("--uv", default="uv", help="the uv executable")
     g.add_argument("--python", required=True, help="the Python version the build uses (X.Y.Z)")
     g.add_argument("--verbose", action="store_true", help="print every step's output")
@@ -140,7 +160,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.check == "gate":
         infra = args.infra.resolve() if args.infra else None
-        ok = gate.run(ROOT, infra, args.uv, args.python, args.verbose)
+        incus = args.incus.resolve() if args.incus else None
+        ok = gate.run(ROOT, infra, args.uv, args.python, args.verbose, incus=incus)
         return 0 if ok else 1
     if args.check in ELSEWHERE:
         outcome = _elsewhere(args)
@@ -150,10 +171,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         outcome = build.run(ROOT, args.infra.resolve(), args.uv, args.python)
     elif args.check == "generated":
         infra = args.infra.resolve() if args.infra else None
+        incus = args.incus.resolve() if args.incus else None
         if args.write:
-            outcome = generated.write(ROOT, args.write, infra)
+            outcome = generated.write(ROOT, args.write, infra, incus)
         else:
-            outcome = generated.run(ROOT, infra)
+            # Two checks. Without Incus's files only the extract's is skipped: it is
+            # reported by its name, and the status stays that of the other files.
+            files = _report("generated", generated.run(ROOT, infra))
+            compared = _report("incus-extract", generated.extract(ROOT, incus))
+            return 1 if 1 in (files, compared) else files
+    elif args.check == "incus-sources":
+        outcome = incus_api.fetch(ROOT, args.destination.resolve())
+    elif args.check == "command-path":
+        outcome = command_path.run(ROOT)
     else:
         outcome = todos.run(ROOT)
         # make verify-todos fails while any marker remains (the gate warns).

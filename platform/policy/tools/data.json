@@ -1,0 +1,323 @@
+{
+  "apply_config_patch": {
+    "applicable_categories": [
+      "config.syntax_error",
+      "config.wrong_value",
+      "container.crash_loop",
+      "database.access_denied",
+      "database.connections_exhausted",
+      "network.dns_failure"
+    ],
+    "mutating": true,
+    "risk": "medium",
+    "version": 1
+  },
+  "check_disk_usage": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "check_inodes": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "check_memory": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "dns_lookup": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "docker_inspect": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "docker_logs": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "docker_ps": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "docker_remove_container": {
+    "applicable_categories": [
+      "container.crash_loop",
+      "resource.disk_full"
+    ],
+    "mutating": true,
+    "risk": "high",
+    "version": 1
+  },
+  "docker_restart_container": {
+    "applicable_categories": [
+      "container.crash_loop",
+      "container.stopped",
+      "config.syntax_error",
+      "config.wrong_value"
+    ],
+    "mutating": true,
+    "risk": "low",
+    "version": 1
+  },
+  "docker_start_container": {
+    "applicable_categories": [
+      "container.stopped",
+      "container.daemon_stopped"
+    ],
+    "mutating": true,
+    "risk": "low",
+    "version": 1
+  },
+  "flush_firewall": {
+    "applicable_categories": [],
+    "mutating": true,
+    "risk": "forbidden",
+    "version": 1
+  },
+  "get_service_status": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "http_probe": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "kill_process": {
+    "applicable_categories": [
+      "resource.cpu_saturated",
+      "resource.memory_exhausted",
+      "resource.fd_exhausted",
+      "database.connections_exhausted"
+    ],
+    "mutating": true,
+    "risk": "high",
+    "version": 1
+  },
+  "list_dir": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "list_failed_units": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "list_listening_ports": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "list_nodes": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "list_processes": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "manage_user": {
+    "applicable_categories": [],
+    "mutating": true,
+    "risk": "forbidden",
+    "version": 1
+  },
+  "network_interfaces": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "nginx_reload": {
+    "applicable_categories": [
+      "config.syntax_error",
+      "config.wrong_value"
+    ],
+    "mutating": true,
+    "risk": "low",
+    "version": 1
+  },
+  "nginx_test_config": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 2
+  },
+  "pg_activity_summary": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "pg_isready": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "query_logs": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "query_metrics": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "read_file": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "reboot": {
+    "applicable_categories": [],
+    "mutating": true,
+    "risk": "forbidden",
+    "version": 1
+  },
+  "redis_info": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "redis_ping": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "remove_file": {
+    "applicable_categories": [
+      "resource.disk_full",
+      "resource.inodes_exhausted"
+    ],
+    "mutating": true,
+    "risk": "medium",
+    "version": 1
+  },
+  "remove_package": {
+    "applicable_categories": [],
+    "mutating": true,
+    "risk": "forbidden",
+    "version": 1
+  },
+  "remove_path": {
+    "applicable_categories": [],
+    "mutating": true,
+    "risk": "forbidden",
+    "version": 1
+  },
+  "restart_service": {
+    "applicable_categories": [
+      "service.stopped",
+      "service.failed",
+      "service.disabled",
+      "config.syntax_error",
+      "config.wrong_value",
+      "resource.disk_full",
+      "resource.inodes_exhausted",
+      "resource.memory_exhausted",
+      "resource.fd_exhausted",
+      "resource.cpu_saturated",
+      "container.stopped",
+      "container.daemon_stopped",
+      "container.crash_loop",
+      "database.unavailable",
+      "database.connections_exhausted",
+      "database.access_denied",
+      "network.dns_failure",
+      "permissions.wrong_mode",
+      "permissions.wrong_owner"
+    ],
+    "mutating": true,
+    "risk": "medium",
+    "version": 1
+  },
+  "rotate_logs": {
+    "applicable_categories": [
+      "resource.disk_full",
+      "resource.inodes_exhausted"
+    ],
+    "mutating": true,
+    "risk": "medium",
+    "version": 1
+  },
+  "start_service": {
+    "applicable_categories": [
+      "service.stopped",
+      "service.failed",
+      "service.disabled",
+      "config.syntax_error",
+      "config.wrong_value",
+      "resource.disk_full",
+      "resource.inodes_exhausted",
+      "resource.memory_exhausted",
+      "resource.fd_exhausted",
+      "container.stopped",
+      "container.daemon_stopped",
+      "database.unavailable",
+      "permissions.wrong_mode",
+      "permissions.wrong_owner"
+    ],
+    "mutating": true,
+    "risk": "low",
+    "version": 1
+  },
+  "stop_service": {
+    "applicable_categories": [
+      "resource.cpu_saturated",
+      "resource.memory_exhausted",
+      "resource.fd_exhausted",
+      "resource.disk_full",
+      "container.crash_loop"
+    ],
+    "mutating": true,
+    "risk": "high",
+    "version": 1
+  },
+  "tail_journal": {
+    "applicable_categories": [],
+    "mutating": false,
+    "risk": "read",
+    "version": 1
+  },
+  "vacuum_journal": {
+    "applicable_categories": [
+      "resource.disk_full"
+    ],
+    "mutating": true,
+    "risk": "medium",
+    "version": 1
+  }
+}

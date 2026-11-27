@@ -1,0 +1,5 @@
+source: manual
+status: 0
+stream: stdout
+---
+524288:402113:ext2/ext3

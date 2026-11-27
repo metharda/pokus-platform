@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from golden import infra, platform
+from potka_primitives import reference
 
 from potka_ci import __main__ as cli
 from potka_ci import generated
+from potka_ci.outcome import Outcome
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMES = [
@@ -19,6 +22,13 @@ NAMES = [
     "scenario.schema.json",
     "taxonomy.schema.json",
 ]
+REGISTRY = "platform/schemas/tools/registry.schema.json"
+MODEL_TOOLS = "platform/schemas/tools/model-tools.json"
+POLICY_TOOLS = "platform/policy/tools/data.json"
+POLICY_REGISTRY = "platform/policy/registry/data.json"
+TOOLS_PAGE = "platform/docs/tools.md"
+COMPILED = [MODEL_TOOLS, POLICY_TOOLS, POLICY_REGISTRY, TOOLS_PAGE]
+PRIMITIVES_PAGE = "platform/docs/primitives.md"
 TABLE = "platform/infra-data/golden-images.json"
 NO_CHECKOUT = "no pokus-infrastructure checkout (INFRA=<path>)"
 
@@ -26,7 +36,15 @@ NO_CHECKOUT = "no pokus-infrastructure checkout (INFRA=<path>)"
 def written(root: Path) -> Path:
     outcome = generated.write(root, "schemas")
     assert outcome.status == "passed"
-    assert outcome.lines == [f"wrote platform/schemas/catalog/{name}" for name in NAMES]
+    assert outcome.lines == [
+        *(f"wrote platform/schemas/catalog/{name}" for name in NAMES),
+        f"wrote {REGISTRY}",
+    ]
+    shutil.copytree(ROOT / generated.REGISTRY, root / generated.REGISTRY)
+    outcome = generated.write(root, "tools")
+    assert (outcome.status, outcome.lines) == ("passed", [f"wrote {name}" for name in COMPILED])
+    outcome = generated.write(root, "primitives")
+    assert (outcome.status, outcome.lines) == ("passed", [f"wrote {PRIMITIVES_PAGE}"])
     return root / generated.SCHEMAS
 
 
@@ -41,9 +59,17 @@ def checkout(tmp_path: Path) -> tuple[Path, Path]:
 
 def test_the_committed_files_match_a_fresh_generation(infra_checkout: Path) -> None:
     outcome = generated.run(ROOT, infra_checkout)
-    assert outcome.lines == ["5 generated file(s) match a fresh generation"]
+    assert outcome.lines == ["11 generated file(s) match a fresh generation"]
     assert outcome.status == "passed"
     assert sorted(p.name for p in (ROOT / generated.SCHEMAS).iterdir()) == NAMES
+    assert sorted(p.name for p in (ROOT / generated.TOOL_SCHEMAS).iterdir()) == [
+        Path(MODEL_TOOLS).name,
+        Path(REGISTRY).name,
+    ]
+    for name in (POLICY_TOOLS, POLICY_REGISTRY):
+        assert [p.name for p in (ROOT / name).parent.iterdir()] == ["data.json"]
+    assert [generated.TARGETS[Path(name)] for name in COMPILED] == ["tools"] * 4
+    assert generated.TARGETS[Path(PRIMITIVES_PAGE)] == "primitives"
     assert [p.name for p in (ROOT / "platform" / "infra-data").iterdir()] == ["golden-images.json"]
 
 
@@ -51,7 +77,7 @@ def test_without_a_checkout_the_schemas_are_compared_and_the_check_is_skipped() 
     outcome = generated.run(ROOT)
     assert outcome.status == "skipped"
     assert outcome.lines == [
-        f"4 generated file(s) match a fresh generation; {TABLE} was not compared: {NO_CHECKOUT}"
+        f"10 generated file(s) match a fresh generation; {TABLE} was not compared: {NO_CHECKOUT}"
     ]
 
 
@@ -65,6 +91,27 @@ def test_a_schema_file_is_sorted_indented_json_with_a_final_newline(tmp_path: Pa
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
         assert schema["type"] == "object"
         assert schema["additionalProperties"] is False
+    # The tool registry's schema has the same form; a registry file is a list of entries.
+    text = (tmp_path / REGISTRY).read_text(encoding="utf-8")
+    schema = json.loads(text)
+    assert text == json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    assert (schema["$schema"], schema["type"]) == (
+        "https://json-schema.org/draft/2020-12/schema",
+        "array",
+    )
+    assert schema["$defs"]["Tool"]["additionalProperties"] is False
+    # What the registry is compiled to: three JSON files of that form, and the page.
+    for name in COMPILED[:3]:
+        text = (tmp_path / name).read_text(encoding="utf-8")
+        loaded = json.loads(text)
+        assert text == json.dumps(loaded, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    assert [one["type"] for one in json.loads((tmp_path / MODEL_TOOLS).read_text())] == [
+        "function"
+    ] * 36
+    assert len(json.loads((tmp_path / POLICY_TOOLS).read_text())) == 41
+    assert sorted(json.loads((tmp_path / POLICY_REGISTRY).read_text())) == ["hash", "version"]
+    for name in (TOOLS_PAGE, PRIMITIVES_PAGE):
+        assert (tmp_path / name).read_text(encoding="utf-8").startswith("---\ntitle: ")
     assert generated.run(tmp_path).status == "skipped"
 
 
@@ -79,6 +126,16 @@ def test_a_changed_a_missing_and_an_unknown_file_fail(tmp_path: Path) -> None:
     (directory / "blueprint.schema.json").unlink()
     (directory / "old.schema.json").write_text("{}\n", encoding="utf-8")
     (directory / "notes").mkdir()
+    registry = tmp_path / REGISTRY
+    registry.write_text(registry.read_text(encoding="utf-8").replace("Tool", "Entry"))
+    (registry.parent / "old.json").write_text("{}\n", encoding="utf-8")
+    page = tmp_path / TOOLS_PAGE
+    page.write_text(page.read_text(encoding="utf-8") + "A line by hand.\n", encoding="utf-8")
+    reference = tmp_path / PRIMITIVES_PAGE
+    reference.write_text(reference.read_text(encoding="utf-8").rstrip("\n"), encoding="utf-8")
+    (tmp_path / POLICY_REGISTRY).unlink()
+    (tmp_path / POLICY_REGISTRY).parent.joinpath("policy.rego").write_text("", encoding="utf-8")
+    (tmp_path / POLICY_TOOLS).parent.joinpath("more").mkdir()
     outcome = generated.run(tmp_path)
     assert outcome.status == "failed"
     assert outcome.lines == [
@@ -87,9 +144,93 @@ def test_a_changed_a_missing_and_an_unknown_file_fail(tmp_path: Path) -> None:
         " (make schemas)",
         "platform/schemas/catalog/taxonomy.schema.json: differs from a fresh generation"
         " (make schemas)",
+        f"{REGISTRY}: differs from a fresh generation (make schemas)",
+        f"{POLICY_REGISTRY}: missing (make tools writes it)",
+        f"{TOOLS_PAGE}: differs from a fresh generation (make tools)",
+        f"{PRIMITIVES_PAGE}: differs from a fresh generation (make primitives)",
         "platform/schemas/catalog/notes: no generator writes it: remove it",
         "platform/schemas/catalog/old.schema.json: no generator writes it: remove it",
+        "platform/schemas/tools/old.json: no generator writes it: remove it",
+        "platform/policy/tools/more: no generator writes it: remove it",
+        "platform/policy/registry/policy.rego: no generator writes it: remove it",
     ]
+
+
+def test_a_registry_that_cannot_be_loaded_fails_with_its_problems(tmp_path: Path) -> None:
+    written(tmp_path)
+    registry = tmp_path / generated.REGISTRY
+    (registry / "VERSION").write_text("0\n", encoding="utf-8")
+    (registry / "notes.txt").write_text("\n", encoding="utf-8")
+    said = (
+        "platform/tools/registry: VERSION: not one positive integer;"
+        " notes.txt: neither VERSION nor a .yaml file"
+    )
+    outcome = generated.run(tmp_path)
+    assert (outcome.status, outcome.lines) == ("failed", [said])
+    # Its compiled files cannot be compared then, and a missing one is still missed.
+    (tmp_path / MODEL_TOOLS).unlink()
+    assert generated.run(tmp_path).lines == [said, f"{MODEL_TOOLS}: missing (make tools writes it)"]
+    outcome = generated.write(tmp_path, "tools")
+    assert (outcome.status, outcome.lines) == ("failed", [said])
+    assert not (tmp_path / MODEL_TOOLS).exists()
+    # A registry that changes changes what it is compiled to.
+    (registry / "VERSION").write_text("2\n", encoding="utf-8")
+    (registry / "notes.txt").unlink()
+    assert generated.write(tmp_path, "tools").status == "passed"
+    assert json.loads((tmp_path / POLICY_REGISTRY).read_text())["version"] == 2
+    (registry / "VERSION").write_text("3\n", encoding="utf-8")
+    assert generated.run(tmp_path).lines == [
+        f"{POLICY_REGISTRY}: differs from a fresh generation (make tools)",
+        f"{TOOLS_PAGE}: differs from a fresh generation (make tools)",
+    ]
+
+
+def test_the_page_of_the_primitives_is_the_library_s_whatever_the_registry_is(
+    tmp_path: Path,
+) -> None:
+    written(tmp_path)
+    page = tmp_path / PRIMITIVES_PAGE
+    text = page.read_text(encoding="utf-8")
+    assert generated.primitives_page() == {Path(PRIMITIVES_PAGE): text}
+    assert (ROOT / PRIMITIVES_PAGE).read_text(encoding="utf-8") == text
+    # A registry that cannot be loaded keeps no other file from being compared.
+    (tmp_path / generated.REGISTRY / "VERSION").write_text("0\n", encoding="utf-8")
+    said = "platform/tools/registry: VERSION: not one positive integer"
+    page.write_text(text.replace("disk.fill", "disk.full"), encoding="utf-8")
+    assert generated.run(tmp_path).lines == [
+        said,
+        f"{PRIMITIVES_PAGE}: differs from a fresh generation (make primitives)",
+    ]
+    page.unlink()
+    assert generated.run(tmp_path).lines == [
+        said,
+        f"{PRIMITIVES_PAGE}: missing (make primitives writes it)",
+    ]
+
+
+def test_a_page_that_cannot_be_written_is_a_finding_and_no_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    written(tmp_path)
+
+    def refuse() -> str:
+        raise ValueError("made_up: size: a field without words")
+
+    monkeypatch.setattr(reference, "documentation", refuse)
+    said = f"{PRIMITIVES_PAGE}: made_up: size: a field without words"
+    # The page that is there cannot be compared, and nothing else is said of it.
+    outcome = generated.run(tmp_path)
+    assert (outcome.status, outcome.lines) == ("failed", [said])
+    outcome = generated.write(tmp_path, "primitives")
+    assert (outcome.status, outcome.lines) == ("failed", [said])
+    # A page that is not there is still missed.
+    (tmp_path / PRIMITIVES_PAGE).unlink()
+    assert generated.run(tmp_path).lines == [
+        said,
+        f"{PRIMITIVES_PAGE}: missing (make primitives writes it)",
+    ]
+    assert generated.write(tmp_path, "primitives").status == "failed"
+    assert not (tmp_path / PRIMITIVES_PAGE).exists()
 
 
 def test_a_file_that_cannot_be_read_fails_with_its_name(tmp_path: Path) -> None:
@@ -116,7 +257,11 @@ def test_without_the_directory_every_file_is_missing(tmp_path: Path) -> None:
     outcome = generated.run(tmp_path)
     assert outcome.status == "failed"
     assert outcome.lines == [
-        f"platform/schemas/catalog/{name}: missing (make schemas writes it)" for name in NAMES
+        "platform/tools/registry: .: cannot be read (FileNotFoundError)",
+        *(f"platform/schemas/catalog/{name}: missing (make schemas writes it)" for name in NAMES),
+        f"{REGISTRY}: missing (make schemas writes it)",
+        *(f"{name}: missing (make tools writes it)" for name in COMPILED),
+        f"{PRIMITIVES_PAGE}: missing (make primitives writes it)",
     ]
 
 
@@ -132,7 +277,7 @@ def test_the_table_is_written_and_compared_with_the_checkout(checkout: tuple[Pat
     outcome = generated.run(root, repo)
     assert (outcome.status, outcome.lines) == (
         "passed",
-        ["5 generated file(s) match a fresh generation"],
+        ["11 generated file(s) match a fresh generation"],
     )
     assert generated.run(root).status == "skipped"
 
@@ -178,9 +323,11 @@ def test_the_command_line_checks_and_writes(
 ) -> None:
     root, repo = checkout
     monkeypatch.setattr(cli, "ROOT", root)
+    # The extract's own check is not this test's: here it finds nothing and says nothing.
+    monkeypatch.setattr(generated, "extract", lambda root, incus=None: Outcome("passed"))
     assert cli.main(["generated"]) == 2
     out, err = capsys.readouterr()
-    assert out.startswith("4 generated file(s) match a fresh generation; ")
+    assert out.startswith("10 generated file(s) match a fresh generation; ")
     assert err == "generated: skipped\n"
     (root / generated.SCHEMAS / "scenario.schema.json").unlink()
     assert cli.main(["generated", "--infra", str(repo)]) == 1
@@ -194,13 +341,39 @@ def test_the_command_line_checks_and_writes(
     assert capsys.readouterr().out == f"wrote {TABLE}\n"
     assert cli.main(["generated", "--write", "schemas"]) == 0
     assert capsys.readouterr().out.count("wrote platform/schemas/catalog/") == 4
+    (root / TOOLS_PAGE).unlink()
+    assert cli.main(["generated", "--write", "tools"]) == 0
+    assert capsys.readouterr().out == "".join(f"wrote {name}\n" for name in COMPILED)
+    (root / PRIMITIVES_PAGE).write_text("by hand\n", encoding="utf-8")
+    assert cli.main(["generated", "--infra", str(repo)]) == 1
+    assert capsys.readouterr().out == (
+        f"{PRIMITIVES_PAGE}: differs from a fresh generation (make primitives)\n"
+    )
+    assert cli.main(["generated", "--write", "primitives"]) == 0
+    assert capsys.readouterr().out == f"wrote {PRIMITIVES_PAGE}\n"
     assert cli.main(["generated", "--infra", str(repo)]) == 0
-    assert capsys.readouterr().out == "5 generated file(s) match a fresh generation\n"
+    assert capsys.readouterr().out == "11 generated file(s) match a fresh generation\n"
     with pytest.raises(SystemExit):
         cli.main(["generated", "--write", "everything"])
 
 
 RECORDER = "import json, sys\njson.dump(sys.argv[2:], open(sys.argv[1], 'w'))\n"
+
+
+@pytest.mark.parametrize("target", ["tools", "primitives"])
+def test_make_writes_what_the_registry_and_the_library_are_compiled_to(
+    tmp_path: Path, target: str
+) -> None:
+    script = tmp_path / "record.py"
+    script.write_text(RECORDER, encoding="utf-8")
+    record = tmp_path / "record.json"
+    inherited = ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "MAKELEVEL", "INFRA", "INCUS")
+    environ = {name: value for name, value in os.environ.items() if name not in inherited}
+    make = ["make", "-s", "-C", str(ROOT / "platform"), target]
+    check = f"CHECK={sys.executable} {script} {record}"
+    done = subprocess.run([*make, check], env=environ, capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(record.read_text(encoding="utf-8")) == ["generated", "--write", target]
 
 
 @pytest.mark.parametrize(
@@ -221,7 +394,7 @@ def test_the_make_targets_refuse_to_run_without_the_checkout(
     check = f"CHECK={sys.executable} {script} {record}"
     # A make that runs these tests (make test INFRA=..., the gate) hands its own INFRA
     # down through the environment: the make started here must not inherit it.
-    inherited = ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "MAKELEVEL", "INFRA")
+    inherited = ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "MAKELEVEL", "INFRA", "INCUS")
     environ = {name: value for name, value in os.environ.items() if name not in inherited}
     done = subprocess.run([*make, check], env=environ, capture_output=True, text=True, check=False)
     assert done.returncode == 2

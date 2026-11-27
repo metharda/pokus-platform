@@ -44,6 +44,9 @@ decision_path = "/v1/data/potka/action/decision"
 [incus]
 url = "https://127.0.0.1:8443"
 cert_dir = "/etc/pinka/incus"
+bench_limits_disk = 85899345920
+build_limits_disk = 42949672960
+pool_volume_size = 10737418240
 projects = ["bench", "build"]
 run_network_socket = "/run/pinka/run-network.sock"
 cpuset_targets = "8-15"

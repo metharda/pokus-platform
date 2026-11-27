@@ -1,0 +1,5 @@
+source: manual
+status: 0
+stream: stdout
+---
+/var/run/postgresql:5432 - accepting connections

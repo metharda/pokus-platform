@@ -1,0 +1,15 @@
+[project]
+name = "potka-tools"
+version = "0.0.0"
+description = "The Pokus Platform's tool registry: its format, the check of a call's arguments and the command of a checked call."
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "jsonschema==4.26.0",
+  "potka-core",
+  "pydantic==2.14.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13"]
+build-backend = "uv_build"

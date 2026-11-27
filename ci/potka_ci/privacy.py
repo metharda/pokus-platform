@@ -10,8 +10,13 @@ message, the paths it added and the lines it added:
 * e-mail addresses outside the RFC 2606 domains (example.com, example.org,
   example.net and their subdomains; the .test, .example, .invalid and
   .localhost top-level domains), except the SSH remotes of public forges,
-  GitHub's own address and SSH algorithm names (at openssh.com and
-  libssh.org);
+  GitHub's own address, SSH algorithm names (at openssh.com and
+  libssh.org) and the name of a systemd service unit's instance, written
+  in lower-case letters, digits, ``.``, ``_`` and ``-``, that no further
+  label follows (``postgresql@16-main.service``: ``service`` is not in the
+  root zone, so no address ends in it; a name of another unit type, a
+  name in other letters and a name with a label after it, such as a
+  drop-in directory's ``.d``, are read as addresses);
 * public IPv4 and IPv6 addresses and networks (the documentation and
   private ranges and multicast are allowed; a four-part version after a
   version comparison, as a TOML version value or in a distribution's file
@@ -101,6 +106,14 @@ EMAIL_RE = re.compile(
 SSH_ALGORITHM_RE = re.compile(
     r"^(?=[a-z0-9-]*\d)[a-z0-9]+(?:-[a-z0-9]+)+@(?:openssh\.com|libssh\.org)$"
 )
+# The name of a service unit's instance, name@instance.service, has the form
+# of an address. No address ends in .service: IANA's list of top-level
+# domains (version 2026111900) has SERVICES and no SERVICE. The other unit
+# types are not exempt, since one of them, TARGET, is in that list. A label
+# after the name makes it an address again: where the top-level domain is
+# not of ASCII letters, EMAIL_RE ends its match before it, at .service.
+UNIT_INSTANCE_RE = re.compile(r"[a-z0-9._-]+@[a-z0-9.-]+\.service")
+LABEL_AFTER_RE = re.compile(r"\.\w")
 # An address may end a sentence: a "." after it ends the match, unless a
 # digit follows (a five-part version or an OID is not an address). A "-"
 # then a letter ends it too (a file name); a "-" then a digit is a range.
@@ -229,6 +242,8 @@ def scan_spans(line: str, path: str, denylist: Sequence[str]) -> Iterator[tuple[
     for m in EMAIL_RE.finditer(line):
         address = m.group(0).lower()
         if address in SERVICE_ADDRESSES or SSH_ALGORITHM_RE.match(address):
+            continue
+        if UNIT_INSTANCE_RE.fullmatch(m.group(0)) and not LABEL_AFTER_RE.match(line, m.end()):
             continue
         if not is_example_domain(m.group("domain")):
             yield m.start(), m.end(), "e-mail address outside the example domains"

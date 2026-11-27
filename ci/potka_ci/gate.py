@@ -5,10 +5,14 @@ It runs the linters, the tests and the repository's checks from the
 failed, skipped and warnings (naming the skipped steps, with pytest's own
 summary), then the complete output of every failed step, the reason of every
 skipped step and every warning. With ``verbose`` it prints every step's
-output. A step without its input (no pokus-infrastructure checkout) is
-skipped, never passed; a step that raises fails, and the gate goes on with
-the next one. Tests that pytest skipped, or warnings it printed, make the
-pytest step a warning.
+output. A step without its input is skipped, never passed: ``actionlint``
+without a workflow, ``shellcheck`` without a script, ``generated``,
+``contract`` and ``build`` without a pokus-infrastructure checkout, and
+without Incus's two files the step ``incus-extract`` alone. What such a
+step can check without its input it still checks and fails on (the
+schemas in ``generated``, a missing extract in ``incus-extract``). A step
+that raises fails, and the gate goes on with the next one. Tests that
+pytest skipped, or warnings it printed, make the pytest step a warning.
 """
 
 from __future__ import annotations
@@ -22,7 +26,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from potka_ci import build, commits, contract, generated, privacy, references, todos
+from potka_ci import (
+    build,
+    command_path,
+    commits,
+    contract,
+    generated,
+    privacy,
+    references,
+    todos,
+)
 from potka_ci.outcome import Outcome
 from potka_ci.push import run_on_push
 
@@ -130,6 +143,7 @@ def run(
     verbose: bool = False,
     printer: Callable[[str], None] = print,
     environ: Mapping[str, str] | None = None,
+    incus: Path | None = None,
 ) -> bool:
     """Run every step and print the summary.
 
@@ -142,6 +156,7 @@ def run(
         printer: Where the lines go.
         environ: The environment the privacy and commit checks read the
             branch and the range from (the process's own when None).
+        incus: The directory with Incus's two files, or None.
 
     Returns:
         True when no step failed.
@@ -180,7 +195,9 @@ def run(
                 tool("pytest", ["-q", "-p", "no:cacheprovider"], platform, tests_env)
             ),
         ),
+        ("command-path", lambda: command_path.run(root)),
         ("generated", lambda: generated.run(root, infra)),
+        ("incus-extract", lambda: generated.extract(root, incus)),
         ("contract", lambda: contract.run(root, infra)),
         ("build", lambda: build.run(root, infra, uv, python)),
         ("privacy", lambda: run_on_push(root, env, privacy.run)),

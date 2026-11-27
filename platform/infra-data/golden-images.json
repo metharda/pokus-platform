@@ -75,7 +75,7 @@
         "docker.io"
       ],
       "type": "container",
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     "pg-primary": {
       "base": {
@@ -210,5 +210,5 @@
       "version": "1.0.1"
     }
   },
-  "infra_pin": "aba3fc90c2007dd6e4d62f9f674bcef15769a913"
+  "infra_pin": "a8babf61ecc87d44c40616265e668e127ecab54f"
 }

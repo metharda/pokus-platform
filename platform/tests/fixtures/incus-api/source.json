@@ -1,0 +1,11 @@
+{
+  "commit": "7678ccc46b2d0b8092b2b9419ab6255e3ca98f00",
+  "files": {
+    "doc/rest-api.yaml": "f5648960d865984b9100cc46105e6b7b3f9259c3118683c25ddc61623043151e",
+    "internal/server/metadata/configuration.json": "12f35177d58b63e999fe23033b5f9e39b316473e7ac4a10fefc7e7e6d649bbc9"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/lxc/incus",
+  "tag": "v6.0.7",
+  "version": "6.0.7"
+}

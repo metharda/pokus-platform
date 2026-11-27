@@ -58,7 +58,8 @@ def test_the_generated_job_compares_with_the_infrastructure_at_the_pin() -> None
     scripts = [step["run"] for step in job["steps"] if "run" in step]
     assert scripts == [
         'git -C ../../pokus-infrastructure checkout --quiet --detach "$(cat ../INFRA_PIN)"',
-        "make setup generated INFRA=../../pokus-infrastructure",
+        "make setup incus-sources generated INFRA=../../pokus-infrastructure"
+        " INCUS=../../incus-sources",
     ]
     assert "continue-on-error" not in job
     assert not [step for step in job["steps"] if "continue-on-error" in step or "if" in step]

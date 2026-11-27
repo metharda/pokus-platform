@@ -1,0 +1,1406 @@
+[
+  {
+    "function": {
+      "description": "Change a configuration file of a node with a unified diff. The file is checked afterwards and put back as it was when the check fails. Only the paths list_nodes names as patchable can be changed.",
+      "name": "apply_config_patch",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "diff": {
+            "description": "The change as a unified diff of the file, with exact context lines.",
+            "maxLength": 65536,
+            "minLength": 1,
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "The file's absolute path.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "diff",
+          "node",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show how full each file system of a node is.",
+      "name": "check_disk_usage",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show how many inodes each file system of a node has used and has left.",
+      "name": "check_inodes",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show a node's memory and swap, in mebibytes.",
+      "name": "check_memory",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Ask a node's resolver for a host name and show its answer.",
+      "name": "dns_lookup",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "The host name: lowercase letters, digits, dots and hyphens.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node that asks.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show a container's state, image, restart policy and restart count.",
+      "name": "docker_inspect",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "description": "The container's name or ID, as docker_ps shows it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "container",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show the last log lines of a container on a node.",
+      "name": "docker_logs",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "description": "The container's name or ID, as docker_ps shows it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "lines": {
+            "default": 100,
+            "description": "How many lines, counted from the newest.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "container",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List a node's containers, the stopped ones too, with their state.",
+      "name": "docker_ps",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Remove a container from a node, stopping it first when it runs. It is gone afterwards.",
+      "name": "docker_remove_container",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "container": {
+            "description": "The container's name or ID, as docker_ps shows it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "container",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Restart a container on a node.",
+      "name": "docker_restart_container",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "container": {
+            "description": "The container's name or ID, as docker_ps shows it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "container",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Start a stopped container on a node.",
+      "name": "docker_start_container",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "container": {
+            "description": "The container's name or ID, as docker_ps shows it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "container",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show a systemd service's state on a node, with its last log lines.",
+      "name": "get_service_status",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "description": "The service's unit, as list_nodes names it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "unit"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Send an HTTP request to one of a node's endpoints from the probe client, and show the status, the headers and the start of the body.",
+      "name": "http_probe",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": {
+            "description": "The endpoint's name, as list_nodes names it.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "node": {
+            "description": "The node whose endpoint is asked.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Send a signal to one process of a node.",
+      "name": "kill_process",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "pid": {
+            "description": "The process's ID, as list_processes shows it.",
+            "maximum": 4194304,
+            "minimum": 2,
+            "type": "integer"
+          },
+          "signal": {
+            "default": "TERM",
+            "description": "TERM asks the process to end; KILL ends it at once.",
+            "enum": [
+              "TERM",
+              "KILL"
+            ],
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node",
+          "pid"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List a directory of a node, hidden entries included, with sizes, owners and modes.",
+      "name": "list_dir",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "The directory's absolute path, one of the readable paths or below one.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List the systemd units of a node that are in the failed state.",
+      "name": "list_failed_units",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List the TCP and UDP ports a node listens on, with the process behind each.",
+      "name": "list_listening_ports",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List the nodes of the system: their names and the services, paths and endpoints you may ask about.",
+      "name": "list_nodes",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "List a node's processes, the heaviest first by CPU or by memory. The list is cut after its first lines.",
+      "name": "list_processes",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "by": {
+            "default": "cpu",
+            "description": "What to sort by: cpu or mem.",
+            "enum": [
+              "cpu",
+              "mem"
+            ],
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show a node's network interfaces with their state and addresses.",
+      "name": "network_interfaces",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Have nginx on a node load its configuration again without stopping.",
+      "name": "nginx_reload",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Check nginx's configuration on a node without loading it, and show what nginx says. nginx -t may create or change files in nginx's own runtime directories.",
+      "name": "nginx_test_config",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Count PostgreSQL's connections on a node by state, beside the most it allows.",
+      "name": "pg_activity_summary",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Ask whether PostgreSQL on a node accepts connections.",
+      "name": "pg_isready",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Search the collected logs of a service on a node.",
+      "name": "query_logs",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "default": "warning",
+            "description": "The least severe level to show.",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "service": {
+            "description": "The service's unit.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "since": {
+            "default": "1h",
+            "description": "How far back to look: a number and s, m, h or d, such as 15m.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[0-9]{1,4}(s|m|h|d)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "service"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show how one measure of a node developed over the last while.",
+      "name": "query_metrics",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "description": "The measure.",
+            "enum": [
+              "cpu_usage",
+              "memory_usage",
+              "disk_usage"
+            ],
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "since": {
+            "default": "1h",
+            "description": "How far back to look: a number and s, m, h or d, such as 15m.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[0-9]{1,4}(s|m|h|d)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Read a text file of a node. Only the paths list_nodes names as readable can be read.",
+      "name": "read_file",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "The file's absolute path.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show one section of what Redis on a node reports about itself.",
+      "name": "redis_info",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "section": {
+            "default": "memory",
+            "description": "The section.",
+            "enum": [
+              "server",
+              "clients",
+              "memory",
+              "persistence",
+              "stats",
+              "replication",
+              "cpu",
+              "keyspace"
+            ],
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Ask whether Redis on a node answers.",
+      "name": "redis_ping",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Delete one file below /tmp, /var/tmp or /var/cache on a node. Directories are not deleted, and a file that is not there is an error.",
+      "name": "remove_file",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "The file's absolute path.",
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node",
+          "path"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Restart a systemd service on a node.",
+      "name": "restart_service",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "description": "The service's unit.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node",
+          "unit"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Rotate every log file that the node's logrotate configuration names now, whatever its size or age.",
+      "name": "rotate_logs",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Start a systemd service on a node.",
+      "name": "start_service",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "description": "The service's unit.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node",
+          "unit"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Stop a systemd service on a node. This tool does not start it again; a service that a socket or a timer activates can start again by itself.",
+      "name": "stop_service",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "unit": {
+            "description": "The service's unit.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node",
+          "unit"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Show the last journal lines of a service on a node.",
+      "name": "tail_journal",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "lines": {
+            "default": 100,
+            "description": "How many lines, counted from the newest.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "since": {
+            "default": "7d",
+            "description": "How far back to look: a number and s, m, h or d, such as 15m.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[0-9]{1,4}(s|m|h|d)$",
+            "type": "string"
+          },
+          "unit": {
+            "description": "The service's unit.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[a-z0-9@._-]+\\.service$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "unit"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "description": "Shrink a node's journal: rotate it, then delete its oldest archived files until what is left is no larger than a size and holds nothing older than an age. Both bounds apply; leave one at its default to bound by the other alone.",
+      "name": "vacuum_journal",
+      "parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "_meta": {
+            "additionalProperties": false,
+            "properties": {
+              "action_confidence": {
+                "description": "How confident you are that this action is right, from 0 to 1.",
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "expected_effect": {
+                "description": "What you expect the action to change.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              "rationale": {
+                "description": "Why you take this action.",
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "action_confidence",
+              "rationale",
+              "expected_effect"
+            ],
+            "type": "object"
+          },
+          "age": {
+            "default": "10y",
+            "description": "The oldest entry to keep: a number and m, h, d, w or y, such as 2d.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[0-9]{1,3}(m|h|d|w|y)$",
+            "type": "string"
+          },
+          "node": {
+            "description": "The node.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "size": {
+            "default": "4G",
+            "description": "The most the journal may take: a number and K, M or G, such as 200M.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "pattern": "^[0-9]{1,4}[KMG]$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "_meta",
+          "node"
+        ],
+        "type": "object"
+      }
+    },
+    "type": "function"
+  }
+]

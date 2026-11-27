@@ -1,0 +1,15 @@
+[project]
+name = "potka-primitives"
+version = "0.0.0"
+description = "The Pokus Platform's fault primitives and probes, and the context through which they act on a run's targets."
+license = "Apache-2.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "potka-core",
+  "potka-incus",
+  "pydantic==2.14.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.24,<0.13"]
+build-backend = "uv_build"

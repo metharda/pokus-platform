@@ -13,6 +13,7 @@ import pytest
 from potka_cli.main import main
 from potka_core.catalog.loader import load_catalog
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
+from potka_testing.tools import changed, restart_service, tail_journal, write_registry
 
 ONE = "scenarios/FIXTURE-001/1"
 
@@ -52,6 +53,19 @@ def test_findings_are_printed_one_per_line_with_their_count(
         " blueprints/\n"
         "scenarios/FIXTURE-001/1/scenario.yaml: probes: no confirm probe\n"
         "2 finding(s)\n",
+        "",
+    )
+
+
+def test_a_step_s_parameters_are_checked_against_the_release_s_library(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = copy_fixture(tmp_path / "catalog")
+    two = "scenarios/FIXTURE-002/1/scenario.yaml"
+    edit_yaml(root, two, lambda d: d["inject"][0]["params"].update(mount="/srv/zq-marked"))
+    assert main(["catalog", "lint", str(root)]) == 1
+    assert capsys.readouterr() == (
+        f"{two}: params: inject.0: disk.fill: mount: is no parameter of it\n1 finding(s)\n",
         "",
     )
 
@@ -170,10 +184,60 @@ def test_a_table_that_cannot_be_read_ends_with_status_2_whatever_the_catalog(
         )
 
 
+def test_the_tool_registry_is_the_release_s_or_the_one_of_a_directory_given(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    release = Path(sys.prefix).parent / "tools" / "registry"
+    assert main(["catalog", "lint", str(FIXTURE_CATALOG), "--tools", str(release)]) == 0
+    assert capsys.readouterr() == ("no finding\n", "")
+    # A registry with two tools: one names a label of its own, and the fixture's ground
+    # truths name tools it has not.
+    entry = changed(restart_service(), "applicable_categories", ["service.stopped", "made.up"])
+    registry = write_registry(tmp_path / "registry", [entry, tail_journal()])
+    assert main(["catalog", "lint", f"--tools={registry}", str(FIXTURE_CATALOG)]) == 1
+    one, two, control = (
+        f"scenarios/FIXTURE-{name}/1/ground_truth.yaml: actions: "
+        for name in ("001", "002", "CONTROL-000")
+    )
+    none = "is no tool of the tool registry\n"
+    assert capsys.readouterr() == (
+        f"{one}acceptable.0: apply_config_patch {none}"
+        f"{one}harmful.0: stop_service {none}"
+        f"{one}then_required.0: start_service {none}"
+        f"{two}acceptable.0: remove_file {none}"
+        f"{two}harmful.0: stop_service {none}"
+        f"{control}harmful.0: stop_service {none}"
+        "taxonomy.yaml: categories: the tool restart_service names the label made.up, which is"
+        " not in the taxonomy\n"
+        "7 finding(s)\n",
+        "",
+    )
+
+
+def test_a_registry_that_cannot_be_read_ends_with_status_2_whatever_the_catalog(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    refused = "potka: the tool registry cannot be read:\n"
+    bad = write_registry(
+        tmp_path / "bad", [changed(restart_service(), "risk", "read")], version="0\n"
+    )
+    for catalog in (FIXTURE_CATALOG, tmp_path / "no-catalog"):
+        assert main(["catalog", "lint", str(catalog), "--tools", str(tmp_path / "none")]) == 2
+        assert capsys.readouterr() == ("", f"{refused}  .: cannot be read (FileNotFoundError)\n")
+        assert main(["catalog", "lint", str(catalog), "--tools", str(bad)]) == 2
+        assert capsys.readouterr() == (
+            "",
+            f"{refused}  VERSION: not one positive integer\n"
+            "  tools-1.yaml: restart_service: Value error, risk is read exactly when mutating"
+            " is false\n",
+        )
+
+
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
         (["catalog", "lint", "--infra-data"], "argument --infra-data: expected one argument"),
+        (["catalog", "lint", "--tools"], "argument --tools: expected one argument"),
         ([], "the following arguments are required: COMMAND"),
         (["catalog"], "the following arguments are required: ACTION"),
         (["lint"], "argument COMMAND: invalid choice: 'lint'"),
@@ -200,18 +264,24 @@ def test_help_names_the_command_and_its_exit_status(capsys: pytest.CaptureFixtur
         main(["catalog", "lint", "--help"])
     assert caught.value.code == 0
     out = " ".join(capsys.readouterr().out.split())
-    assert out.startswith("usage: potka catalog lint [-h] [--json] [--infra-data DIR] [PATH]")
+    assert out.startswith(
+        "usage: potka catalog lint [-h] [--json] [--infra-data DIR] [--tools DIR] [PATH]"
+    )
     assert (
         "Check a catalog checkout: its layout and the form of each of its files and, once every"
         " file has its form, what the files say about each other. Exit status: 0 without a"
         " finding, 1 with findings (a path that is no catalog is one), 2 for a command line"
-        " that is not understood or a golden images table that cannot be read."
+        " that is not understood or a golden images table or a tool registry that cannot be"
+        " read."
     ) in out
     assert "the catalog's root (default: the current directory)" in out
     assert "print the findings as one JSON object" in out
     assert (
         "--infra-data DIR the directory that holds golden-images.json (default: the release's"
         " infra-data/)"
+    ) in out
+    assert (
+        "--tools DIR the tool registry's directory (default: the release's tools/registry/)"
     ) in out
 
 

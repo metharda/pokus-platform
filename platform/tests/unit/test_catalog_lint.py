@@ -14,6 +14,7 @@ from potka_core.catalog.lint import (
     PRIMITIVES,
     PROBES,
     Finding,
+    Library,
     is_control,
     lint,
     lint_catalog,
@@ -21,6 +22,7 @@ from potka_core.catalog.lint import (
 from potka_core.catalog.loader import load_catalog
 from potka_core.images import load_table
 from potka_testing.fixture_catalog import FIXTURE_CATALOG, copy_fixture, edit_yaml
+from potka_testing.tool_views import LIBRARY, TOOLS
 
 WEB = "blueprints/fixture-web.yaml"
 STORE = "blueprints/fixture-store.yaml"
@@ -51,8 +53,8 @@ def catalog(tmp_path: Path) -> Path:
     return copy_fixture(tmp_path / "catalog")
 
 
-def found(root: Path) -> list[tuple[str, str, str]]:
-    findings = lint(root)
+def found(root: Path, library: Library = LIBRARY) -> list[tuple[str, str, str]]:
+    findings = lint(root, TOOLS, library)
     assert findings == sorted(set(findings))
     return [(finding.path, finding.rule, finding.message) for finding in findings]
 
@@ -66,9 +68,9 @@ def new_version(root: Path, scenario: str, version: int, **changes: Any) -> str:
 
 
 def test_the_fixture_catalog_has_no_finding(catalog: Path) -> None:
-    assert lint(FIXTURE_CATALOG) == []
-    assert lint(catalog) == []
-    assert lint_catalog(load_catalog(catalog), load_table()) == []
+    assert lint(FIXTURE_CATALOG, TOOLS, LIBRARY) == []
+    assert lint(catalog, TOOLS, LIBRARY) == []
+    assert lint_catalog(load_catalog(catalog), TOOLS, LIBRARY, load_table()) == []
 
 
 def test_the_fault_primitives_and_the_probes() -> None:
@@ -134,7 +136,7 @@ def test_a_file_that_does_not_load_gives_the_loaders_findings_only(catalog: Path
         ("scenarios/notes.txt", "format", "a file, not a directory"),
     ]
     assert yaml_error[:2] == ("taxonomy.yaml", "format")
-    assert yaml_error[2].startswith("not YAML of the catalog's subset: ")
+    assert yaml_error[2].startswith("not YAML of the platform's subset: ")
     assert yaml_error[2].endswith(" (line 3, column 1)")
     assert found(catalog / "missing") == [(".", "format", "missing")]
 
@@ -161,7 +163,40 @@ def test_the_versions_of_a_scenario_share_its_split(catalog: Path) -> None:
 
 def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web"))
-    assert found(catalog) == []
+    # The blueprint is one of the catalog; what its actions and its steps name there is
+    # other rules' to find.
+    no_node = "node: is no node of the scenario's blueprint"
+    assert found(catalog) == [
+        *(
+            (
+                "scenarios/FIXTURE-002/1/ground_truth.yaml",
+                "actions",
+                f"{place}: {tool} node: is no node of the scenario's blueprint",
+            )
+            for place, tool in (("acceptable.0", "remove_file"), ("harmful.0", "stop_service"))
+        ),
+        (
+            "scenarios/FIXTURE-002/1/ground_truth.yaml",
+            "params",
+            f"collateral.0: unit_state: {no_node}",
+        ),
+        (
+            "scenarios/FIXTURE-002/1/ground_truth.yaml",
+            "params",
+            f"verification.0: disk_usage_below: {no_node}",
+        ),
+        (
+            "scenarios/FIXTURE-002/1/scenario.yaml",
+            "params",
+            f"confirm.0: disk_usage_below: {no_node}",
+        ),
+        ("scenarios/FIXTURE-002/1/scenario.yaml", "params", f"inject.0: disk.fill: {no_node}"),
+        (
+            "scenarios/FIXTURE-002/1/scenario.yaml",
+            "params",
+            f"preconditions.0: disk_usage_below: {no_node}",
+        ),
+    ]
     edit_yaml(catalog, f"{TWO}/scenario.yaml", lambda d: d.update(blueprint="fixture-web-app"))
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", lambda d: d.update(blueprint="web"))
     assert found(catalog) == [
@@ -181,13 +216,15 @@ def test_a_scenario_names_a_blueprint_of_the_catalog(catalog: Path) -> None:
 def test_every_step_names_a_known_primitive_or_probe(catalog: Path) -> None:
     def scenario(d: Any) -> None:
         d["preconditions"].append({"probe": "http_gets", "params": {}})
-        d["setup"].append({"primitive": "file.write", "params": {}})
+        written = {"node": "web", "path": "/etc/motd", "content": "hello\n"}
+        d["setup"].append({"primitive": "file.write", "params": written})
         d["setup"].append({"primitive": "file.writes", "params": {}})
         d["inject"].insert(0, {"primitive": "nginx.corrupt", "params": {}})
         d["confirm"].append({"probe": "nginx_config", "params": {}})
 
     def truth(d: Any) -> None:
-        d["verification"].append({"probe": "unit_state", "params": {}})
+        loaded = {"node": "web", "unit": "nginx.service", "state": "active"}
+        d["verification"].append({"probe": "unit_state", "params": loaded})
         d["verification"].append({"probe": "units_state", "params": {}})
         d["collateral"].insert(0, {"probe": "file_changed", "params": {}})
 
@@ -228,10 +265,18 @@ def test_every_primitive_and_probe_name_is_accepted(catalog: Path) -> None:
 
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", scenario)
     # Every name is known. What else such a step lacks is other rules' to find: a tool no
-    # golden image carries, and the primitives that work through a background component.
+    # golden image carries, the primitives that work through a background component, and
+    # those that need what no golden image has. The steps' parameters, which are none, are
+    # the rule params' to find: the library is left out here.
     path = f"{CONTROL}/scenario.yaml"
+    unsupported = ("app.bad_config", "dns.break_resolver", "dns.wrong_record", "docker.crashloop")
     expected = []
     for index, name in enumerate(sorted(PRIMITIVES)):
+        if name in unsupported:
+            reason = "no golden image has what it needs yet"
+            expected.append(
+                (path, "available", f"setup.{index}: {name} is not available: {reason}")
+            )
         if name == "net.block_port":
             reason = "not every golden image carries nftables"
             expected.append(
@@ -246,8 +291,8 @@ def test_every_primitive_and_probe_name_is_accepted(catalog: Path) -> None:
                 "it must name its node, component, setting outright, as text without a parameter"
             )
             expected.append((path, "load", f"setup.{index}: {name}: {unnamed}"))
-    assert len(expected) == 11
-    assert found(catalog) == sorted(expected)
+    assert len(expected) == 15
+    assert found(catalog, Library({}, {})) == sorted(expected)
 
 
 def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> None:
@@ -256,7 +301,7 @@ def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> Non
         d["verification"][0]["params"]["note"] = "${defect} in ${section}, 5 $$"
         d["collateral"][0]["params"]["paths"].append("/srv/${section}")
         for kind in ("acceptable", "then_required", "harmful"):
-            d["actions"][kind][0]["args"]["note"] = "${section}"
+            d["actions"][kind][0]["args"]["node"] = "${section}"
 
     edit_yaml(catalog, f"{ONE}/ground_truth.yaml", declared)
     assert found(catalog) == []
@@ -266,7 +311,7 @@ def test_a_ground_truth_uses_only_its_scenarios_parameters(catalog: Path) -> Non
         d["verification"][0]["params"]["note"] = "${checked}"
         d["collateral"][0]["params"]["paths"].append("/srv/${kept}/${section}")
         for kind in ("acceptable", "then_required", "harmful"):
-            d["actions"][kind][0]["args"]["note"] = "${" + kind + "}"
+            d["actions"][kind][0]["args"]["node"] = "${" + kind + "}"
 
     edit_yaml(catalog, f"{ONE}/ground_truth.yaml", undeclared)
     edit_yaml(
@@ -334,7 +379,12 @@ def test_a_control_scenario_accepts_none_only_has_no_action_and_injects_nothing(
     edit_yaml(
         catalog,
         f"{CONTROL}/scenario.yaml",
-        lambda d: d["inject"].append({"primitive": "pg.stop", "params": {}}),
+        lambda d: d["inject"].append(
+            {
+                "primitive": "systemd.action",
+                "params": {"node": "web", "unit": "nginx.service", "action": "stop"},
+            }
+        ),
     )
     assert found(catalog) == [
         only_none,
@@ -345,7 +395,9 @@ def test_a_control_scenario_accepts_none_only_has_no_action_and_injects_nothing(
 
 def test_a_control_scenario_may_prepare_its_target(catalog: Path) -> None:
     def prepared(d: Any) -> None:
-        d["setup"].append({"primitive": "file.mutate", "params": {"node": "web"}})
+        edit = {"edit": "set_key", "key": "workers", "value": "2"}
+        prepared_file = {"node": "web", "path": "/etc/fixture-web/app.conf", "edits": [edit]}
+        d["setup"].append({"primitive": "file.mutate", "params": prepared_file})
         d["preconditions"].append({"probe": "load_below", "params": {"node": "web"}})
 
     edit_yaml(catalog, f"{CONTROL}/scenario.yaml", prepared)
@@ -421,6 +473,23 @@ def test_every_label_of_a_ground_truth_is_in_the_taxonomy(catalog: Path) -> None
             "labels",
             "the label resource.disk_full is not in the taxonomy",
         ),
+        # The tools of the release's registry that name the label miss it too.
+        *(
+            (
+                "taxonomy.yaml",
+                "categories",
+                f"the tool {name} names the label resource.disk_full, which is not in the taxonomy",
+            )
+            for name in (
+                "docker_remove_container",
+                "remove_file",
+                "restart_service",
+                "rotate_logs",
+                "start_service",
+                "stop_service",
+                "vacuum_journal",
+            )
+        ),
     ]
 
 
@@ -471,6 +540,8 @@ def shared(golden: str, golden_version: str, version: int, **settings: Any) -> A
         node["components"][0]["settings"].update(settings)
         node["allowed_read_paths"] = web["allowed_read_paths"]
         node["patchable_paths"] = web["patchable_paths"]
+        # A node on another image keeps no probe of the service it left behind.
+        d["health"] = [one for one in d["health"] if one["probe"] != "pg_ready"]
 
     return change
 
@@ -576,6 +647,7 @@ def test_a_shared_derived_image_with_other_components_is_refused(catalog: Path) 
     def moved(d: Any) -> None:
         d["nodes"][0]["golden"] = {"blueprint": "web-nginx-flask", "version": GOLDEN}
         d["nodes"][0]["derived"] = {"name": "fixture-web-app", "version": 1}
+        d["health"] = [one for one in d["health"] if one["probe"] != "pg_ready"]
 
     shutil.rmtree(catalog / "blueprints" / "fixture-store-app")
     edit_yaml(catalog, STORE, moved)

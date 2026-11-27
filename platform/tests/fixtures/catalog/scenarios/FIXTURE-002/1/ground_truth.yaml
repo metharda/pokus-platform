@@ -1,6 +1,6 @@
 fault:
   category: resource.disk_full
-  component: the database node's temporary volume
+  component: the database node's root disk
   location: /var/tmp
 diagnosis:
   accepted_labels: [resource.disk_full]
@@ -14,8 +14,8 @@ actions:
       args: {node: db, unit: postgresql.service}
 verification:
   - probe: disk_usage_below
-    params: {node: db, mount: /var/tmp, percent: 90}
+    params: {node: db, percent: 90}
 collateral:
   - probe: unit_state
     params: {node: db, unit: postgresql.service, state: active}
-resolution_state: The temporary volume has free space again.
+resolution_state: The root disk has free space again.

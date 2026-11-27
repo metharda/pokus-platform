@@ -1,0 +1,5 @@
+source: manual
+status: 0
+stream: stdout
+---
+755:0:0:directory

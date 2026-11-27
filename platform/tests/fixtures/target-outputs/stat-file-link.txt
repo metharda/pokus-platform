@@ -1,0 +1,5 @@
+source: manual
+status: 0
+stream: stdout
+---
+777:0:0:symbolic link

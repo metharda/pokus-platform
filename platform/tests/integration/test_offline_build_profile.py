@@ -21,11 +21,27 @@ from potka_core.catalog import lint
 CONTRACT = Path("docs") / "contracts.md"
 # The profiles of the pinned contract, none of them a build profile without a network device.
 PROFILES = ["target-container", "target-vm", "probe-client", "build"]
+# Everything the pinned contract's Profiles row names in code, in the row's order: the
+# profiles, a setting, and a disk's two size keys with the profile that has both.
+NAMED = [
+    "target-container",
+    "target-vm",
+    "vm_targets",
+    "probe-client",
+    "build",
+    "size",
+    "size.state",
+    "target-vm",
+]
+# What of it is no profile.
+NO_PROFILES = {"vm_targets", "size", "size.state"}
 # The rows of the pinned contract's Incus table, none of them about such a profile.
 ROWS = [
     "API",
     "Credentials",
+    "Storage pool",
     "Projects",
+    "Disk budget",
     "Run networks",
     "Network ACL",
     "Firewall compatibility",
@@ -51,6 +67,29 @@ def profiles(text: str) -> list[str]:
     return re.findall(r"`([^`]+)`", incus_rows(text)["Profiles"])
 
 
+def unchanged(text: str) -> bool:
+    """Whether the contract's Profiles row names in code exactly what the pinned row does."""
+    return profiles(text) == NAMED
+
+
+def test_a_row_that_names_anything_more_less_or_elsewhere_is_another_row() -> None:
+    def contract(names: list[str]) -> str:
+        row = ", ".join(f"`{name}`" for name in names)
+        return f"# Contract\n\n## Incus\n\n| Item | Value |\n| --- | --- |\n| Profiles | {row} |\n"
+
+    assert unchanged(contract(NAMED))
+    # A profile named once more, a key named once more, a name less, another order.
+    for other in (
+        [*NAMED, "build"],
+        [*NAMED, "size"],
+        NAMED[:-1],
+        [NAMED[1], NAMED[0], *NAMED[2:]],
+    ):
+        assert not unchanged(contract(other)), other
+    # The profiles are what the row names that is neither the setting nor a disk's key.
+    assert [name for name in dict.fromkeys(NAMED) if name not in NO_PROFILES] == PROFILES
+
+
 def test_the_profiles_row_is_read_as_the_contract_writes_it() -> None:
     text = (
         "# Contract\n\n## Incus\n\n| Item | Value |\n| --- | --- |\n"
@@ -70,7 +109,7 @@ def test_the_constant_follows_the_pinned_contract_s_profiles(infra_checkout: Pat
             "the pinned contract's Incus table changed: if it now names the build profile"
             " without a network device, OFFLINE_BUILD_PROFILE takes its name"
         )
-        assert [name for name in named if name != "vm_targets"] == PROFILES, changed
+        assert unchanged(text), changed
         assert list(incus_rows(text)) == ROWS, changed
     else:
         assert lint.OFFLINE_BUILD_PROFILE in named

@@ -15,7 +15,7 @@ from potka_core.images import GoldenEntry
 from potka_core.principals import Principals
 from pydantic import BaseModel
 
-from potka_ci import contract
+from potka_ci import contract, incus_api, todos
 
 SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27,12 +27,28 @@ LAB_POSTGRES = (
     "docker.io/library/postgres:18.6-trixie"
     "@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722"
 )
-VERSIONS = """| Name | Image | Tag | Digest | Platforms |
+VERSIONS = """| Release | Package | Version |
+| --- | --- | --- |
+| ubuntu-24.04 | incus | `1:9.9.9-ubuntu24.04-1` (x86_64), `1:9.9.9-ubuntu24.04-2` (aarch64) |
+| debian-13 | incus | `1:9.9.9-debian13-202601010000` |
+| debian-13 | docker-ce | `5:29.8.2-1~debian.13~trixie` |
+
+| Name | Image | Tag | Digest | Platforms |
 | --- | --- | --- | --- | --- |
 | otel_collector | `docker.io/otel/collector` | `0.1` | `sha256:{other}` | linux/amd64 |
 | postgres | `docker.io/library/postgres` | `18.6-trixie` | `sha256:{digest}` | linux/amd64 |
 """.format(other="1" * 64, digest=LAB_POSTGRES.rsplit(":", 1)[1])
 WORKFLOW = "jobs:\n  test:\n    services:\n      postgres:\n        image: {image}\n"
+INCUS_SOURCE = {
+    "repository": "https://github.com/example-org/incus",
+    "tag": "v9.9.9",
+    "version": "9.9.9",
+    "commit": "c" * 40,
+    "license": "Apache-2.0",
+    "files": {incus_api.API: "a" * 64, incus_api.CONFIGURATION: "b" * 64},
+}
+INCUS_LINE = "the Incus API extract is of Incus 9.9.9, as docs/reference/versions.md pins (2 rows)"
+DEBIAN = "`1:9.9.9-debian13-202601010000`"
 FAKE_VALIDATOR = """
 import pathlib, sys
 if sys.argv[1] != "validate" or sys.argv[3:] != ["--no-host-check"]:
@@ -98,6 +114,7 @@ def platform_repo(
     repo.write("INFRA_PIN", pin + "\n")
     repo.write("platform/platform-manifest.yaml", manifest)
     repo.write(".github/workflows/ci.yml", WORKFLOW.format(image=image))
+    repo.write(incus_api.SOURCE.as_posix(), json.dumps(INCUS_SOURCE))
     return repo
 
 
@@ -129,7 +146,8 @@ def test_the_release_meets_the_contract(repo: Repo, infra: Repo) -> None:
     assert (
         f"the test job's PostgreSQL is the lab's (docs/reference/versions.md): {LAB_POSTGRES}"
     ) in outcome.lines
-    assert outcome.lines[-1] == f"PyYAML {metadata.version('pyyaml')}, as pokus-infrastructure pins"
+    assert outcome.lines[-2] == f"PyYAML {metadata.version('pyyaml')}, as pokus-infrastructure pins"
+    assert outcome.lines[-1] == INCUS_LINE
 
 
 def test_the_workflow_s_postgres_must_be_the_lab_s(repo: Repo, infra: Repo) -> None:
@@ -179,6 +197,157 @@ def test_the_versions_page_must_have_one_postgres_row(
     assert shown == []
     assert len(findings) == 1
     assert finding in findings[0]
+
+
+@pytest.mark.parametrize(
+    ("versions", "source", "finding"),
+    [
+        (VERSIONS, INCUS_SOURCE, None),
+        (
+            VERSIONS.replace("1:9.9.9-debian13", "1:9.9.10-debian13"),
+            INCUS_SOURCE,
+            "the Incus API extract is of Incus 9.9.9, but docs/reference/versions.md pins 9.9.10,"
+            " 9.9.9: make a new extract (platform/tests/fixtures/incus-api/source.json,"
+            " make incus-api)",
+        ),
+        (
+            VERSIONS.replace("| incus |", "| incus-client |"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md has no row of the package incus to compare the extract's"
+            " Incus with",
+        ),
+        (
+            None,
+            INCUS_SOURCE,
+            "docs/reference/versions.md is missing in the pokus-infrastructure checkout",
+        ),
+        (
+            b"\xff\xfe| debian-13 | incus | `1:9.9.9-1` |\n",
+            INCUS_SOURCE,
+            "docs/reference/versions.md of the pokus-infrastructure checkout is not UTF-8",
+        ),
+        # A row whose version the check cannot read fails it, even beside rows it can read.
+        (
+            VERSIONS.replace(DEBIAN, "to be verified"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: to be verified"
+            " is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, "`1:9.9.9~rc1-1`"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: `1:9.9.9~rc1-1`"
+            " is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, "`1:9.9.9-1`, `nine`"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: `1:9.9.9-1`, `nine`"
+            " is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, ""),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: an empty cell"
+            " is not one this check can read",
+        ),
+        # What stands outside the quotes is unread too: a value that is not verified yet,
+        # alone or beside one that is; a version written without them; an architecture
+        # without its version.
+        (
+            VERSIONS.replace(DEBIAN, todos.MARKER),
+            INCUS_SOURCE,
+            f"docs/reference/versions.md: the incus version of debian-13: {todos.MARKER}"
+            " is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, f"`1:9.9.9-1` (x86_64), {todos.MARKER} (aarch64)"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: `1:9.9.9-1` (x86_64),"
+            f" {todos.MARKER} (aarch64) is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, "`1:9.9.9-1` (x86_64), (aarch64)"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: `1:9.9.9-1` (x86_64),"
+            " (aarch64) is not one this check can read",
+        ),
+        (
+            VERSIONS.replace(DEBIAN, "`1:9.9.9-1` (x86_64), 1:8.8.8-1 (aarch64)"),
+            INCUS_SOURCE,
+            "docs/reference/versions.md: the incus version of debian-13: `1:9.9.9-1` (x86_64),"
+            " 1:8.8.8-1 (aarch64) is not one this check can read",
+        ),
+        # Read as the same version: no epoch, no revision; a package whose name only holds
+        # the word and a later column are not read at all.
+        (VERSIONS.replace(DEBIAN, "`9.9.9`"), INCUS_SOURCE, None),
+        (VERSIONS.replace(DEBIAN, "`9.9.9-1` (x86_64), `1:9.9.9-2` (aarch64)"), INCUS_SOURCE, None),
+        (
+            VERSIONS.replace(
+                "| debian-13 | docker-ce |",
+                "| debian-13 | python3-incus | `1:8.8.8-1` |\n| debian-13 | docker-ce |",
+            ),
+            INCUS_SOURCE,
+            None,
+        ),
+        (VERSIONS.replace(DEBIAN + " |", DEBIAN + " | `1:8.8.8-1` |"), INCUS_SOURCE, None),
+        (
+            VERSIONS,
+            {**INCUS_SOURCE, "files": {}},
+            "platform/tests/fixtures/incus-api/source.json: files are not doc/rest-api.yaml and"
+            " internal/server/metadata/configuration.json",
+        ),
+    ],
+    ids=[
+        "the-same",
+        "another-in-one-row",
+        "no-row",
+        "no-page",
+        "not-utf-8",
+        "no-version",
+        "a-release-candidate",
+        "one-of-two-unread",
+        "an-empty-cell",
+        "not-verified",
+        "one-of-two-not-verified",
+        "one-of-two-without-a-version",
+        "one-of-two-not-quoted",
+        "no-epoch-no-revision",
+        "two-architectures",
+        "another-package",
+        "a-later-column",
+        "no-source",
+    ],
+)
+def test_the_extract_s_incus_must_be_the_lab_s(
+    tmp_path: Path, versions: str | bytes | None, source: dict[str, Any], finding: str | None
+) -> None:
+    root, infra = tmp_path / "root", tmp_path / "infra"
+    (root / incus_api.DIRECTORY).mkdir(parents=True)
+    (root / incus_api.SOURCE).write_text(json.dumps(source))
+    (infra / "docs" / "reference").mkdir(parents=True)
+    page = infra / "docs" / "reference" / "versions.md"
+    if isinstance(versions, bytes):
+        page.write_bytes(versions)
+    elif versions is not None:
+        page.write_text(versions)
+    findings, shown = contract.incus_version(root, infra)
+    assert (findings, shown) == (([finding], []) if finding else ([], [INCUS_LINE]))
+
+
+def test_a_versions_page_that_is_missing_or_not_utf_8_is_reported_once(
+    repo: Repo, infra: Repo
+) -> None:
+    root = platform_repo(repo, infra.git("rev-parse", "HEAD")).path
+    page = infra.path / "docs" / "reference" / "versions.md"
+    page.write_bytes(b"\xff\xfe| debian-13 | incus | `1:9.9.9-1` |\n")
+    outcome = contract.run(root, infra.path)
+    unread = "docs/reference/versions.md of the pokus-infrastructure checkout is not UTF-8"
+    assert (outcome.status, outcome.lines.count(unread)) == ("failed", 1)
+    page.unlink()
+    outcome = contract.run(root, infra.path)
+    missing = "docs/reference/versions.md is missing in the pokus-infrastructure checkout"
+    assert (outcome.status, outcome.lines.count(missing)) == ("failed", 1)
 
 
 @pytest.mark.parametrize("text", ["ced2fbd", "x" * 40, "a" * 40 + "\n" + "b" * 40, "A" * 40])
