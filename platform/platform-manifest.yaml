@@ -4,7 +4,7 @@ contract_version: 2
 name: potka
 version: 0.0.0
 runtime: python-uv
-requires: [postgres, incus, inference]
+requires: [postgres, incus, inference, opa]
 
 services:
   - name: orch
@@ -80,3 +80,8 @@ hooks:
 
 backup:
   database: true
+
+# The policy engine loads this bundle, and the executor asks it at this path.
+policy:
+  bundle: policy
+  decision_path: potka/action/decision
