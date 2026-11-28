@@ -5,6 +5,7 @@ description = "The executor of the Pokus Platform (not implemented yet)."
 license = "Apache-2.0"
 requires-python = "==3.12.*"
 dependencies = [
+  "httpx==0.28.1",
   "potka-core",
   "potka-tools",
   "pydantic==2.14.2",

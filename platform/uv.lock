@@ -695,6 +695,7 @@ name = "potka-executor"
 version = "0.0.0"
 source = { editable = "packages/potka-executor" }
 dependencies = [
+    { name = "httpx" },
     { name = "potka-core" },
     { name = "potka-tools" },
     { name = "pydantic" },
@@ -702,6 +703,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "potka-core", editable = "packages/potka-core" },
     { name = "potka-tools", editable = "packages/potka-tools" },
     { name = "pydantic", specifier = "==2.14.2" },
