@@ -67,6 +67,10 @@ setup: ## Python (../BUILD_PYTHON) in .python/, then the locked development envi
 postgres: ## PostgreSQL 18.6 (the lab's version) from conda-forge, each file checked by sha256, in .postgres/
 	tests/postgres/install.sh
 
+.PHONY: opa
+opa: ## OPA (the lab's version, tests/opa/opa.lock), checked by sha256 before it may run, in .opa/
+	tests/opa/install.sh
+
 .PHONY: lock
 lock: ## Update uv.lock
 	$(UV) lock

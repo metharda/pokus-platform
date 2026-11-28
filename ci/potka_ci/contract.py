@@ -110,6 +110,16 @@ VERSIONS_ROW_RE = re.compile(
     r"\s*`(?P<digest>sha256:[0-9a-f]{64})`\s*\|"
 )
 PYYAML_PIN_RE = re.compile(r"^pyyaml\s*==\s*(?P<version>[^\s;]+)\s*(?:;.*)?$", re.IGNORECASE)
+# The policy engine's binary for the policy's tests: the lock's lines, and the page's rows
+# of a binary (version, machine, URL, sha256; the row of its image has other cells).
+OPA_LOCK = Path("platform") / "tests" / "opa" / "opa.lock"
+OPA_LOCK_RE = re.compile(
+    r"^(?P<version>\S+) (?P<machine>[a-z0-9_]+) (?P<url>https://\S+) (?P<sha256>[0-9a-f]{64})$"
+)
+VERSIONS_OPA_RE = re.compile(
+    r"^\|\s*opa\s*\|\s*`(?P<version>[^`\s]+)`\s*\|\s*(?P<machine>[a-z0-9_]+)\s*\|"
+    r"\s*`(?P<url>https://[^`\s]+)`\s*\|\s*`(?P<sha256>[0-9a-f]{64})`\s*\|"
+)
 
 
 def read_pin(root: Path) -> str | None:
@@ -301,6 +311,53 @@ def database_image(root: Path, infra: Path) -> tuple[list[str], list[str]]:
     return [], [f"the test job's PostgreSQL is the lab's ({VERSIONS.as_posix()}): {lab}"]
 
 
+def opa_binary(root: Path, infra: Path) -> tuple[list[str], list[str]]:
+    """Whether the policy tests' OPA is the lab's: the lock's lines against the page's rows.
+
+    Args:
+        root: The working tree (its lock file).
+        infra: The pokus-infrastructure checkout (its versions page).
+
+    Returns:
+        The findings and the lines to show.
+    """
+    try:
+        text = (infra / VERSIONS).read_text(encoding="utf-8")
+    except OSError:
+        return [f"{VERSIONS.as_posix()} is missing in the pokus-infrastructure checkout"], []
+    except UnicodeDecodeError:
+        return [f"{VERSIONS.as_posix()} of the pokus-infrastructure checkout is not UTF-8"], []
+    found = [VERSIONS_OPA_RE.match(line.strip()) for line in text.splitlines()]
+    theirs = sorted(tuple(row.groupdict().values()) for row in found if row is not None)
+    if not theirs:
+        return [f"{VERSIONS.as_posix()} has no row of a binary for opa"], []
+    try:
+        lock = (root / OPA_LOCK).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return [f"{OPA_LOCK.as_posix()} is missing or is not UTF-8"], []
+    lines = [line for line in lock.splitlines() if line and not line.startswith("#")]
+    rows = [OPA_LOCK_RE.match(line) for line in lines]
+    if not rows or None in rows:
+        form = "version, machine, URL and sha256, one space between"
+        return [f"{OPA_LOCK.as_posix()}: every line that is no comment is {form}"], []
+    ours = sorted(tuple(row.groupdict().values()) for row in rows if row is not None)
+    for what, held in ((OPA_LOCK.as_posix(), ours), (VERSIONS.as_posix(), theirs)):
+        machines = [row[1] for row in held]
+        if len(set(machines)) != len(machines):
+            return [f"{what} names a machine twice for opa"], []
+    if ours != theirs:
+        where = VERSIONS.as_posix()
+        return [
+            f"{OPA_LOCK.as_posix()} is not the lab's OPA ({where}):",
+            *(f"  the lock: {' '.join(row)}" for row in ours if row not in theirs),
+            *(f"  the page: {' '.join(row)}" for row in theirs if row not in ours),
+        ], []
+    named = ", ".join(row[1] for row in ours)
+    versions = ", ".join(sorted({row[0] for row in ours}))
+    where = VERSIONS.as_posix()
+    return [], [f"the policy tests' OPA is the lab's ({where}): {versions} for {named}"]
+
+
 # A row of the package incus: the release, the package, and the cell of its versions.
 VERSIONS_INCUS_RE = re.compile(r"^\|(?P<release>[^|]*)\|\s*incus\s*\|(?P<pins>[^|]*)\|")
 QUOTED_RE = re.compile(r"`([^`]*)`")
@@ -413,6 +470,9 @@ def run(root: Path, infra: Path | None) -> Outcome:
         lines += shown
     found, shown = database_image(root, infra)
     findings += found
+    lines += shown
+    found, shown = opa_binary(root, infra)
+    findings += [finding for finding in found if finding not in findings]
     lines += shown
     pinned = infra_pyyaml(infra)
     ours = metadata.version("pyyaml")

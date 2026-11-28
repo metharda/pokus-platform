@@ -37,7 +37,22 @@ VERSIONS = """| Release | Package | Version |
 | --- | --- | --- | --- | --- |
 | otel_collector | `docker.io/otel/collector` | `0.1` | `sha256:{other}` | linux/amd64 |
 | postgres | `docker.io/library/postgres` | `18.6-trixie` | `sha256:{digest}` | linux/amd64 |
-""".format(other="1" * 64, digest=LAB_POSTGRES.rsplit(":", 1)[1])
+| opa | `docker.io/example-org/opa` | `9.9.9-static` | `sha256:{other}` | linux/amd64 |
+
+| Component | Version | Machine | URL | sha256 |
+| --- | --- | --- | --- | --- |
+| opa | `9.9.9` | x86_64 | `https://example.org/opa/v9.9.9/opa_amd64` | `{amd}` |
+| opa | `9.9.9` | aarch64 | `https://example.org/opa/v9.9.9/opa_arm64` | `{arm}` |
+""".format(other="1" * 64, digest=LAB_POSTGRES.rsplit(":", 1)[1], amd="3" * 64, arm="4" * 64)
+POSTGRES_ROW = next(line for line in VERSIONS.splitlines() if line.startswith("| postgres |"))
+OPA_LOCK = (
+    "# A comment.\n"
+    f"9.9.9 aarch64 https://example.org/opa/v9.9.9/opa_arm64 {'4' * 64}\n"
+    f"9.9.9 x86_64 https://example.org/opa/v9.9.9/opa_amd64 {'3' * 64}\n"
+)
+OPA_LINE = (
+    "the policy tests' OPA is the lab's (docs/reference/versions.md): 9.9.9 for aarch64, x86_64"
+)
 WORKFLOW = "jobs:\n  test:\n    services:\n      postgres:\n        image: {image}\n"
 INCUS_SOURCE = {
     "repository": "https://github.com/example-org/incus",
@@ -115,6 +130,7 @@ def platform_repo(
     repo.write("platform/platform-manifest.yaml", manifest)
     repo.write(".github/workflows/ci.yml", WORKFLOW.format(image=image))
     repo.write(incus_api.SOURCE.as_posix(), json.dumps(INCUS_SOURCE))
+    repo.write(contract.OPA_LOCK.as_posix(), OPA_LOCK)
     return repo
 
 
@@ -146,6 +162,7 @@ def test_the_release_meets_the_contract(repo: Repo, infra: Repo) -> None:
     assert (
         f"the test job's PostgreSQL is the lab's (docs/reference/versions.md): {LAB_POSTGRES}"
     ) in outcome.lines
+    assert OPA_LINE in outcome.lines
     assert outcome.lines[-2] == f"PyYAML {metadata.version('pyyaml')}, as pokus-infrastructure pins"
     assert outcome.lines[-1] == INCUS_LINE
 
@@ -174,7 +191,7 @@ def test_a_workflow_without_the_service_fails(repo: Repo, infra: Repo) -> None:
     [
         (None, "docs/reference/versions.md is missing in the pokus-infrastructure checkout"),
         ("| redis | `r` | `7` | `sha256:" + "2" * 64 + "` |\n", "has 0 rows for postgres"),
-        (VERSIONS + VERSIONS.splitlines()[-1] + "\n", "has 2 rows for postgres"),
+        (VERSIONS + POSTGRES_ROW + "\n", "has 2 rows for postgres"),
         (
             VERSIONS + "| postgres | docker.io/library/postgres | 18 | sha256:00 |\n",
             "has 2 rows for postgres",
@@ -333,6 +350,136 @@ def test_the_extract_s_incus_must_be_the_lab_s(
         page.write_text(versions)
     findings, shown = contract.incus_version(root, infra)
     assert (findings, shown) == (([finding], []) if finding else ([], [INCUS_LINE]))
+
+
+def _opa(tmp_path: Path, versions: str | bytes | None, lock: str | None) -> tuple[Path, Path]:
+    root, infra = tmp_path / "root", tmp_path / "infra"
+    (root / contract.OPA_LOCK).parent.mkdir(parents=True)
+    if lock is not None:
+        (root / contract.OPA_LOCK).write_text(lock)
+    (infra / "docs" / "reference").mkdir(parents=True)
+    page = infra / "docs" / "reference" / "versions.md"
+    if isinstance(versions, bytes):
+        page.write_bytes(versions)
+    elif versions is not None:
+        page.write_text(versions)
+    return root, infra
+
+
+def test_the_lock_s_opa_is_the_lab_s(tmp_path: Path) -> None:
+    assert contract.opa_binary(*_opa(tmp_path, VERSIONS, OPA_LOCK)) == ([], [OPA_LINE])
+
+
+AMD = f"9.9.9 x86_64 https://example.org/opa/v9.9.9/opa_amd64 {'3' * 64}"
+ARM = f"9.9.9 aarch64 https://example.org/opa/v9.9.9/opa_arm64 {'4' * 64}"
+
+
+@pytest.mark.parametrize(
+    ("lock", "findings"),
+    [
+        (
+            OPA_LOCK.replace("3" * 64, "5" * 64),
+            [
+                "platform/tests/opa/opa.lock is not the lab's OPA (docs/reference/versions.md):",
+                f"  the lock: {AMD.replace('3' * 64, '5' * 64)}",
+                f"  the page: {AMD}",
+            ],
+        ),
+        (
+            OPA_LOCK.replace("9.9.9 x86_64", "9.9.8 x86_64"),
+            [
+                "platform/tests/opa/opa.lock is not the lab's OPA (docs/reference/versions.md):",
+                f"  the lock: {AMD.replace('9.9.9 x', '9.9.8 x')}",
+                f"  the page: {AMD}",
+            ],
+        ),
+        (
+            OPA_LOCK.replace("opa_amd64", "opa_other"),
+            [
+                "platform/tests/opa/opa.lock is not the lab's OPA (docs/reference/versions.md):",
+                f"  the lock: {AMD.replace('opa_amd64', 'opa_other')}",
+                f"  the page: {AMD}",
+            ],
+        ),
+        (
+            ARM + "\n",
+            [
+                "platform/tests/opa/opa.lock is not the lab's OPA (docs/reference/versions.md):",
+                f"  the page: {AMD}",
+            ],
+        ),
+        (
+            OPA_LOCK + AMD.replace("3" * 64, "5" * 64) + "\n",
+            ["platform/tests/opa/opa.lock names a machine twice for opa"],
+        ),
+    ],
+    ids=["sha256", "version", "url", "a-machine-less", "a-machine-twice"],
+)
+def test_a_lock_that_differs_from_the_page_fails(
+    tmp_path: Path, lock: str, findings: list[str]
+) -> None:
+    assert contract.opa_binary(*_opa(tmp_path, VERSIONS, lock)) == (findings, [])
+
+
+@pytest.mark.parametrize(
+    ("versions", "lock", "finding"),
+    [
+        (
+            None,
+            OPA_LOCK,
+            "docs/reference/versions.md is missing in the pokus-infrastructure checkout",
+        ),
+        (b"\xff\xfe", OPA_LOCK, "docs/reference/versions.md of the pokus-infrastructure checkout"),
+        (
+            "| opa | `docker.io/example-org/opa` | `9.9.9-static` | `sha256:" + "1" * 64 + "` |\n",
+            OPA_LOCK,
+            "docs/reference/versions.md has no row of a binary for opa",
+        ),
+        (VERSIONS, None, "platform/tests/opa/opa.lock is missing or is not UTF-8"),
+        (VERSIONS, "# Only a comment.\n", "every line that is no comment is version, machine"),
+        (
+            VERSIONS,
+            OPA_LOCK + "9.9.9 x86_64\n",
+            "every line that is no comment is version, machine",
+        ),
+        (VERSIONS, OPA_LOCK.replace(" x86_64 ", "  x86_64 "), "every line that is no comment is"),
+        (VERSIONS, OPA_LOCK.replace("https://", "http://"), "every line that is no comment is"),
+        (VERSIONS, OPA_LOCK.replace("3" * 64, "3" * 63), "every line that is no comment is"),
+        (
+            VERSIONS + VERSIONS.splitlines()[-1].replace("4" * 64, "6" * 64) + "\n",
+            OPA_LOCK,
+            "docs/reference/versions.md names a machine twice for opa",
+        ),
+    ],
+    ids=[
+        "no-page",
+        "page-not-utf-8",
+        "only-the-image's-row",
+        "no-lock",
+        "an-empty-lock",
+        "a-short-line",
+        "two-spaces",
+        "not-https",
+        "a-short-sha256",
+        "the-page-twice",
+    ],
+)
+def test_a_page_or_a_lock_that_cannot_be_compared_fails(
+    tmp_path: Path, versions: str | bytes | None, lock: str | None, finding: str
+) -> None:
+    findings, shown = contract.opa_binary(*_opa(tmp_path, versions, lock))
+    assert shown == []
+    assert len(findings) == 1
+    assert finding in findings[0]
+
+
+def test_the_shipped_lock_has_one_line_for_each_of_two_machines_at_one_version() -> None:
+    platform = Path(__file__).resolve().parents[2] / "platform"
+    lock = (platform / "tests" / "opa" / "opa.lock").read_text(encoding="utf-8")
+    rows = [contract.OPA_LOCK_RE.match(line) for line in lock.splitlines() if line[:1] != "#"]
+    assert None not in rows
+    assert sorted(row["machine"] for row in rows if row is not None) == ["aarch64", "x86_64"]
+    assert len({row["version"] for row in rows if row is not None}) == 1
 
 
 def test_a_versions_page_that_is_missing_or_not_utf_8_is_reported_once(

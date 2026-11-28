@@ -1,0 +1,7 @@
+# OPA, the policy engine of the lab, for the policy's tests only (make opa): one line
+# for each machine, the version, the machine (uname -m), the URL and the sha256, as
+# pokus-infrastructure's docs/reference/versions.md has them at INFRA_PIN (the
+# contract check compares). make opa downloads this machine's file, checks its sha256,
+# and only then makes it executable.
+1.21.1 aarch64 https://github.com/open-policy-agent/opa/releases/download/v1.21.1/opa_linux_arm64_static 9a1f3625529c6f01240fe68286dde06aa0b23c5253da700ac48f4d943ff8a4de
+1.21.1 x86_64 https://github.com/open-policy-agent/opa/releases/download/v1.21.1/opa_linux_amd64_static 668506eb17a2eaa1fce6cc0d1f42ef85125d4ac5bda5fc74d1152d0c77145031
