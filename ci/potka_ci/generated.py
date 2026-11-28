@@ -13,6 +13,10 @@ deployed release needs no generation step:
   (``platform/policy/tools/data.json``, ``platform/policy/registry/data.json``)
   and the page that lists the tools (``platform/docs/tools.md``); ``make
   tools`` writes them;
+* the hash of the policy bundle (``platform/policy/potka/bundle/data.json``,
+  from every other file of ``platform/policy/``, with potka-executor's own
+  function); ``make bundle`` writes it, and ``make tools`` after the files
+  it has written, since they are of the bundle;
 * the page that lists the fault primitives and probes
   (``platform/docs/primitives.md``, from potka-primitives' classes); ``make
   primitives`` writes it;
@@ -35,8 +39,8 @@ is not at hand everywhere: two files of Incus's repository, which ``make
 incus-sources`` fetches. Without them only that check is skipped, by its
 name; :func:`run` compares every other generated file all the same.
 
-potka-core, potka-tools and potka-primitives are imported only when the
-check runs, so the other checks run without them.
+potka-core, potka-tools, potka-primitives and potka-executor are imported
+only when the check runs, so the other checks run without them.
 """
 
 from __future__ import annotations
@@ -56,6 +60,8 @@ POLICY_TOOLS = Path("platform") / "policy" / "tools" / "data.json"
 POLICY_REGISTRY = Path("platform") / "policy" / "registry" / "data.json"
 TOOLS_PAGE = Path("platform") / "docs" / "tools.md"
 PRIMITIVES_PAGE = Path("platform") / "docs" / "primitives.md"
+BUNDLE = Path("platform") / "policy"
+BUNDLE_HASH = BUNDLE / "potka" / "bundle" / "data.json"
 # What the tool registry is compiled to.
 COMPILED = (MODEL_TOOLS, POLICY_TOOLS, POLICY_REGISTRY, TOOLS_PAGE)
 # The make target that writes a file (a schema: schemas).
@@ -64,6 +70,7 @@ TARGETS = {
     incus_api.EXTRACT: "incus-api",
     **dict.fromkeys(COMPILED, "tools"),
     PRIMITIVES_PAGE: "primitives",
+    BUNDLE_HASH: "bundle",
 }
 # What the extract's directory holds besides the extract: its source and what says so.
 BESIDE_EXTRACT = {incus_api.EXTRACT, incus_api.SOURCE, incus_api.README}
@@ -73,7 +80,7 @@ FETCH = (
     "when one of Incus's two files is missing or is not the recorded one: make incus-sources"
     f" INCUS=<path> fetches both at the commit that {incus_api.SOURCE.as_posix()} names"
 )
-Kind = Literal["schemas", "tools", "primitives", "golden-images", "incus-api"]
+Kind = Literal["schemas", "tools", "primitives", "bundle", "golden-images", "incus-api"]
 
 
 def catalog_schemas() -> dict[Path, str]:
@@ -131,6 +138,21 @@ def tool_files(root: Path) -> dict[Path, str]:
     }
 
 
+def bundle_file(root: Path) -> dict[Path, str]:
+    """The file that holds the hash of the policy bundle of the working tree ROOT, by its path.
+
+    The hash is of the bundle's files as they are in the tree, so it is
+    written after every other file of the bundle.
+
+    Raises:
+        ValueError: The bundle's hash cannot be taken (potka-executor's
+            ``BundleError``): no directory, no file, a link.
+    """
+    from potka_executor.bundle import HASH_FILE, bundle_hash, hash_file
+
+    return {BUNDLE / HASH_FILE: hash_file(bundle_hash(root / BUNDLE))}
+
+
 def primitives_page() -> dict[Path, str]:
     """The page of the library's fault primitives and probes, by its path.
 
@@ -155,8 +177,8 @@ def write(root: Path, kind: Kind, infra: Path | None = None, incus: Path | None 
 
     Args:
         root: The working tree.
-        kind: ``schemas``, ``tools``, ``primitives``, ``golden-images`` or
-            ``incus-api``.
+        kind: ``schemas``, ``tools``, ``primitives``, ``bundle``,
+            ``golden-images`` or ``incus-api``.
         infra: The pokus-infrastructure checkout at the pin (for the table).
         incus: The directory with Incus's two files (for the extract).
 
@@ -167,9 +189,17 @@ def write(root: Path, kind: Kind, infra: Path | None = None, incus: Path | None 
         return _write(root, {**catalog_schemas(), **tool_schemas()})
     if kind == "tools":
         try:
-            return _write(root, tool_files(root))
+            written = _write(root, tool_files(root))
         except ValueError as exc:
             return Outcome("failed", [f"{REGISTRY.as_posix()}: {exc}"])
+        # Two of those files are of the policy bundle, whose hash is of its files.
+        hashed = write(root, "bundle")
+        return Outcome(hashed.status, [*written.lines, *hashed.lines])
+    if kind == "bundle":
+        try:
+            return _write(root, bundle_file(root))
+        except ValueError as exc:
+            return Outcome("failed", [f"{BUNDLE.as_posix()}: {exc}"])
     if kind == "primitives":
         try:
             return _write(root, primitives_page())
@@ -274,6 +304,12 @@ def run(root: Path, infra: Path | None = None) -> Outcome:
         findings.append(f"{PRIMITIVES_PAGE.as_posix()}: {exc}")
         # A page that cannot be written has no fresh generation: it must still be there.
         expected[PRIMITIVES_PAGE] = None
+    try:
+        expected.update(bundle_file(root))
+    except ValueError as exc:
+        findings.append(f"{BUNDLE.as_posix()}: {exc}")
+        # A bundle whose hash cannot be taken has no fresh generation: its file must still be there.
+        expected[BUNDLE_HASH] = None
     if infra is not None:
         try:
             expected[golden_images.TABLE] = golden_images.generate(root, infra)
@@ -289,6 +325,7 @@ def run(root: Path, infra: Path | None = None) -> Outcome:
         (TOOL_SCHEMAS, written),
         (POLICY_TOOLS.parent, written),
         (POLICY_REGISTRY.parent, written),
+        (BUNDLE_HASH.parent, {BUNDLE_HASH}),
         (golden_images.TABLE.parent, {golden_images.TABLE}),
         (incus_api.DIRECTORY, BESIDE_EXTRACT),
     ):

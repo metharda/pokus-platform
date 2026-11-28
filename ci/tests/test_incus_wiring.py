@@ -28,7 +28,7 @@ FETCH = (
     " INCUS=<path> fetches both at the commit that"
     " platform/tests/fixtures/incus-api/source.json names"
 )
-FILES = "11 generated file(s) match a fresh generation"
+FILES = "12 generated file(s) match a fresh generation"
 
 
 def with_tools(root: Path) -> None:
@@ -92,7 +92,7 @@ def test_without_incus_s_files_only_the_extract_s_comparison_is_skipped(tmp_path
     assert (outcome.status, outcome.lines) == (
         "skipped",
         [
-            f"10 generated file(s) match a fresh generation; {TABLE} was not compared:"
+            f"11 generated file(s) match a fresh generation; {TABLE} was not compared:"
             " no pokus-infrastructure checkout (INFRA=<path>)"
         ],
     )

@@ -26,6 +26,7 @@ from potka_ci import (
     gate,
     generated,
     incus_api,
+    policy,
     privacy,
     references,
     todos,
@@ -83,12 +84,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     n.add_argument(
         "--write",
-        choices=["schemas", "tools", "primitives", "golden-images", "incus-api"],
+        choices=["schemas", "tools", "primitives", "bundle", "golden-images", "incus-api"],
         help="write the files of one kind instead of comparing every file",
     )
     i = checks.add_parser("incus-sources", help="fetch Incus's two files of the API extract")
     i.add_argument("destination", type=Path, help="the directory to write them into")
     checks.add_parser("command-path", help="no shell where a command is made or carried")
+    checks.add_parser("policy", help="the policy bundle, checked with the lab's OPA")
     checks.add_parser("verify-todos", help="list the open verification markers")
     g = checks.add_parser("gate", help="every check once, with one summary line")
     g.add_argument("--infra", type=Path, help="pokus-infrastructure at INFRA_PIN")
@@ -184,6 +186,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         outcome = incus_api.fetch(ROOT, args.destination.resolve())
     elif args.check == "command-path":
         outcome = command_path.run(ROOT)
+    elif args.check == "policy":
+        outcome = policy.run(ROOT)
     else:
         outcome = todos.run(ROOT)
         # make verify-todos fails while any marker remains (the gate warns).

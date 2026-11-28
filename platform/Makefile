@@ -100,6 +100,14 @@ schemas: ## Write the JSON Schemas of the catalog's files and of the tool regist
 tools: ## Write what the tool registry (tools/registry/) is compiled to: the model's tool schemas, the policy data, docs/tools.md
 	$(CHECK) generated --write tools
 
+.PHONY: bundle
+bundle: ## Write the hash of the policy bundle (policy/potka/bundle/data.json) from the bundle's other files
+	$(CHECK) generated --write bundle
+
+.PHONY: policy
+policy: ## The policy bundle with the lab's OPA: opa check, its format, its cases, every line tried (make opa first)
+	$(CHECK) policy
+
 .PHONY: primitives
 primitives: ## Write docs/primitives.md, the page of the fault primitives and probes, from the library
 	$(CHECK) generated --write primitives

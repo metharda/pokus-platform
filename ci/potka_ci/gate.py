@@ -7,8 +7,9 @@ summary), then the complete output of every failed step, the reason of every
 skipped step and every warning. With ``verbose`` it prints every step's
 output. A step without its input is skipped, never passed: ``actionlint``
 without a workflow, ``shellcheck`` without a script, ``generated``,
-``contract`` and ``build`` without a pokus-infrastructure checkout, and
-without Incus's two files the step ``incus-extract`` alone. What such a
+``contract`` and ``build`` without a pokus-infrastructure checkout,
+``policy`` without the lab's OPA (``make opa``), and without Incus's two
+files the step ``incus-extract`` alone. What such a
 step can check without its input it still checks and fails on (the
 schemas in ``generated``, a missing extract in ``incus-extract``). A step
 that raises fails, and the gate goes on with the next one. Tests that
@@ -32,6 +33,7 @@ from potka_ci import (
     commits,
     contract,
     generated,
+    policy,
     privacy,
     references,
     todos,
@@ -197,6 +199,7 @@ def run(
         ),
         ("command-path", lambda: command_path.run(root)),
         ("generated", lambda: generated.run(root, infra)),
+        ("policy", lambda: policy.run(root, env)),
         ("incus-extract", lambda: generated.extract(root, incus)),
         ("contract", lambda: contract.run(root, infra)),
         ("build", lambda: build.run(root, infra, uv, python)),

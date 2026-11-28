@@ -12,6 +12,7 @@ from potka_ci import (
     contract,
     gate,
     generated,
+    policy,
     privacy,
     references,
     todos,
@@ -58,6 +59,7 @@ def steps(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setattr(command_path, "run", no_shell)
     monkeypatch.setattr(generated, "run", generated_run)
     monkeypatch.setattr(generated, "extract", extract)
+    monkeypatch.setattr(policy, "run", fixed(Outcome("passed", ["policy: 9 case(s)"])))
     monkeypatch.setattr(contract, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(build, "run", fixed(Outcome("skipped", ["no checkout"])))
     monkeypatch.setattr(privacy, "run", fixed(Outcome("warning", ["no denylist", "privacy: 3"])))
@@ -72,8 +74,8 @@ def test_the_summary_line_and_what_follows_it(repo: Repo, steps: pytest.MonkeyPa
     ok = gate.run(repo.path, None, printer=lines.append)
     assert ok is False
     assert lines == [
-        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
-        " build), 1 warnings (15 steps; pytest: 12 passed)",
+        "gate: 9 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
+        " build), 1 warnings (16 steps; pytest: 12 passed)",
         "skipped: actionlint: no .github/workflows/ci.yml",
         "skipped: shellcheck: no shell script (tests/*/*.sh)",
         f"skipped: incus-extract: {NOT_COMPARED}",
@@ -107,15 +109,47 @@ def test_the_generated_step_is_skipped_or_fails_as_its_check_says(
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append, incus=tmp_path) is False
     assert lines[0] == (
-        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, generated, contract, build),"
-        " 1 warnings (15 steps; pytest: 12 passed)"
+        "gate: 9 passed, 1 failed, 5 skipped (actionlint, shellcheck, generated, contract, build),"
+        " 1 warnings (16 steps; pytest: 12 passed)"
     )
     assert f"skipped: generated: {not_compared}" in lines
     steps.setattr(generated, "run", fixed(Outcome("failed", ["a.schema.json: differs"])))
     lines.clear()
     assert gate.run(repo.path, None, printer=lines.append, incus=tmp_path) is False
-    assert lines[0].startswith("gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
+    assert lines[0].startswith("gate: 9 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
     assert lines[lines.index("--- generated: failed") + 1] == "a.schema.json: differs"
+
+
+def test_the_policy_step_is_skipped_or_fails_as_its_check_says(
+    repo: Repo, steps: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    no_opa = "no OPA in platform/.opa: make opa"
+    steps.setattr(policy, "run", fixed(Outcome("skipped", [no_opa])))
+    lines: list[str] = []
+    assert not gate.run(repo.path, None, "uv", "3.12.0", printer=lines.append)
+    assert lines[0].startswith(
+        "gate: 8 passed, 1 failed, 6 skipped (actionlint, shellcheck, policy, incus-extract,"
+    )
+    assert f"skipped: policy: {no_opa}" in lines
+    steps.setattr(policy, "run", fixed(Outcome("failed", ["opa test policy: exit status 2"])))
+    lines = []
+    assert not gate.run(repo.path, None, "uv", "3.12.0", printer=lines.append)
+    assert lines[lines.index("--- policy: failed") + 1] == "opa test policy: exit status 2"
+
+
+def test_the_policy_step_is_given_the_gates_environment(
+    repo: Repo, steps: pytest.MonkeyPatch
+) -> None:
+    seen: list[object] = []
+
+    def run(root: Path, environ: object = None) -> Outcome:
+        seen.append((root, environ))
+        return Outcome("passed", ["policy: 9 case(s)"])
+
+    steps.setattr(policy, "run", run)
+    environ = {"CI": "true"}
+    gate.run(repo.path, None, "uv", "3.12.0", printer=lambda line: None, environ=environ)
+    assert seen == [(repo.path, environ)]
 
 
 def test_without_incus_s_files_only_the_extract_s_step_is_skipped(
@@ -124,7 +158,7 @@ def test_without_incus_s_files_only_the_extract_s_step_is_skipped(
     lines: list[str] = []
     gate.run(repo.path, tmp_path / "infra", verbose=True, printer=lines.append)
     assert lines[0].startswith(
-        "gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
+        "gate: 9 passed, 1 failed, 5 skipped (actionlint, shellcheck, incus-extract, contract,"
     )
     # The other generated files were compared and their step passed.
     assert lines[lines.index("--- generated: passed") + 1] == "4 generated file(s)"
@@ -132,14 +166,14 @@ def test_without_incus_s_files_only_the_extract_s_step_is_skipped(
     lines.clear()
     gate.run(repo.path, tmp_path / "infra", verbose=True, printer=lines.append, incus=tmp_path)
     assert lines[0].startswith(
-        "gate: 9 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract,"
+        "gate: 10 passed, 1 failed, 4 skipped (actionlint, shellcheck, contract,"
     )
     assert lines[lines.index("--- incus-extract: passed") + 1] == "the extract matches"
     # A difference in the extract fails its own step and no other.
     steps.setattr(generated, "extract", fixed(Outcome("failed", ["api.json: differs"])))
     lines.clear()
     assert gate.run(repo.path, tmp_path / "infra", printer=lines.append, incus=tmp_path) is False
-    assert lines[0].startswith("gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
+    assert lines[0].startswith("gate: 9 passed, 2 failed, 4 skipped (actionlint, shellcheck,")
     assert lines[lines.index("--- incus-extract: failed") + 1] == "api.json: differs"
 
 
@@ -164,7 +198,7 @@ def test_a_shell_on_the_command_path_fails_the_gate(repo: Repo, steps: pytest.Mo
     steps.setattr(references, "run", fixed(Outcome("passed", ["references: 0"])))
     lines.clear()
     assert gate.run(repo.path, None, printer=lines.append) is False
-    assert lines[0].startswith("gate: 8 passed, 1 failed, 5 skipped (actionlint, shellcheck,")
+    assert lines[0].startswith("gate: 9 passed, 1 failed, 5 skipped (actionlint, shellcheck,")
     assert lines[lines.index("--- command-path: failed") + 1] == found
 
 
@@ -184,7 +218,7 @@ def test_a_step_that_raises_fails_and_the_gate_goes_on(
     lines: list[str] = []
     assert gate.run(repo.path, None, printer=lines.append) is False
     assert lines[0].startswith(
-        "gate: 8 passed, 2 failed, 4 skipped (actionlint, shellcheck, incus-extract, contract)"
+        "gate: 9 passed, 2 failed, 4 skipped (actionlint, shellcheck, incus-extract, contract)"
     )
     assert "--- build: failed" in lines
     assert lines[-1] == "a.md:1:1: plan-step"

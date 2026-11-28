@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from golden import infra, platform
+from potka_executor import bundle
 from potka_primitives import reference
 
 from potka_ci import __main__ as cli
@@ -29,6 +30,7 @@ POLICY_REGISTRY = "platform/policy/registry/data.json"
 TOOLS_PAGE = "platform/docs/tools.md"
 COMPILED = [MODEL_TOOLS, POLICY_TOOLS, POLICY_REGISTRY, TOOLS_PAGE]
 PRIMITIVES_PAGE = "platform/docs/primitives.md"
+BUNDLE_HASH = "platform/policy/potka/bundle/data.json"
 TABLE = "platform/infra-data/golden-images.json"
 NO_CHECKOUT = "no pokus-infrastructure checkout (INFRA=<path>)"
 
@@ -42,7 +44,11 @@ def written(root: Path) -> Path:
     ]
     shutil.copytree(ROOT / generated.REGISTRY, root / generated.REGISTRY)
     outcome = generated.write(root, "tools")
-    assert (outcome.status, outcome.lines) == ("passed", [f"wrote {name}" for name in COMPILED])
+    # The registry's policy data is of the bundle, so its hash is written after it.
+    assert (outcome.status, outcome.lines) == (
+        "passed",
+        [f"wrote {name}" for name in (*COMPILED, BUNDLE_HASH)],
+    )
     outcome = generated.write(root, "primitives")
     assert (outcome.status, outcome.lines) == ("passed", [f"wrote {PRIMITIVES_PAGE}"])
     return root / generated.SCHEMAS
@@ -59,7 +65,7 @@ def checkout(tmp_path: Path) -> tuple[Path, Path]:
 
 def test_the_committed_files_match_a_fresh_generation(infra_checkout: Path) -> None:
     outcome = generated.run(ROOT, infra_checkout)
-    assert outcome.lines == ["11 generated file(s) match a fresh generation"]
+    assert outcome.lines == ["12 generated file(s) match a fresh generation"]
     assert outcome.status == "passed"
     assert sorted(p.name for p in (ROOT / generated.SCHEMAS).iterdir()) == NAMES
     assert sorted(p.name for p in (ROOT / generated.TOOL_SCHEMAS).iterdir()) == [
@@ -70,6 +76,9 @@ def test_the_committed_files_match_a_fresh_generation(infra_checkout: Path) -> N
         assert [p.name for p in (ROOT / name).parent.iterdir()] == ["data.json"]
     assert [generated.TARGETS[Path(name)] for name in COMPILED] == ["tools"] * 4
     assert generated.TARGETS[Path(PRIMITIVES_PAGE)] == "primitives"
+    assert generated.TARGETS[Path(BUNDLE_HASH)] == "bundle"
+    assert Path(BUNDLE_HASH) == generated.BUNDLE_HASH == generated.BUNDLE / bundle.HASH_FILE
+    assert [p.name for p in (ROOT / BUNDLE_HASH).parent.iterdir()] == ["data.json"]
     assert [p.name for p in (ROOT / "platform" / "infra-data").iterdir()] == ["golden-images.json"]
 
 
@@ -77,7 +86,7 @@ def test_without_a_checkout_the_schemas_are_compared_and_the_check_is_skipped() 
     outcome = generated.run(ROOT)
     assert outcome.status == "skipped"
     assert outcome.lines == [
-        f"10 generated file(s) match a fresh generation; {TABLE} was not compared: {NO_CHECKOUT}"
+        f"11 generated file(s) match a fresh generation; {TABLE} was not compared: {NO_CHECKOUT}"
     ]
 
 
@@ -148,6 +157,8 @@ def test_a_changed_a_missing_and_an_unknown_file_fail(tmp_path: Path) -> None:
         f"{POLICY_REGISTRY}: missing (make tools writes it)",
         f"{TOOLS_PAGE}: differs from a fresh generation (make tools)",
         f"{PRIMITIVES_PAGE}: differs from a fresh generation (make primitives)",
+        # A file less and a file more in the bundle: its hash is another.
+        f"{BUNDLE_HASH}: differs from a fresh generation (make bundle)",
         "platform/schemas/catalog/notes: no generator writes it: remove it",
         "platform/schemas/catalog/old.schema.json: no generator writes it: remove it",
         "platform/schemas/tools/old.json: no generator writes it: remove it",
@@ -258,11 +269,63 @@ def test_without_the_directory_every_file_is_missing(tmp_path: Path) -> None:
     assert outcome.status == "failed"
     assert outcome.lines == [
         "platform/tools/registry: .: cannot be read (FileNotFoundError)",
+        "platform/policy: the bundle is no directory",
         *(f"platform/schemas/catalog/{name}: missing (make schemas writes it)" for name in NAMES),
         f"{REGISTRY}: missing (make schemas writes it)",
         *(f"{name}: missing (make tools writes it)" for name in COMPILED),
         f"{PRIMITIVES_PAGE}: missing (make primitives writes it)",
+        f"{BUNDLE_HASH}: missing (make bundle writes it)",
     ]
+
+
+def test_the_bundles_hash_is_of_its_files_and_written_after_them(tmp_path: Path) -> None:
+    written(tmp_path)
+    directory = tmp_path / generated.BUNDLE
+    kept = tmp_path / BUNDLE_HASH
+    assert kept.read_text(encoding="utf-8") == bundle.hash_file(bundle.bundle_hash(directory))
+    assert bundle.kept_hash(directory) == bundle.bundle_hash(directory)
+    # A file of the bundle that changes, a decision for example, changes the hash.
+    rego = directory / "potka" / "action.rego"
+    rego.write_text("package potka.action\n", encoding="utf-8")
+    said = f"{BUNDLE_HASH}: differs from a fresh generation (make bundle)"
+    assert generated.run(tmp_path).lines == [said]
+    outcome = generated.write(tmp_path, "bundle")
+    assert (outcome.status, outcome.lines) == ("passed", [f"wrote {BUNDLE_HASH}"])
+    assert generated.run(tmp_path).status == "skipped"
+    rego.write_text("package potka.action\n\n", encoding="utf-8")
+    assert generated.run(tmp_path).lines == [said]
+    # A hash written by hand is no fresh generation either.
+    generated.write(tmp_path, "bundle")
+    kept.write_text(bundle.hash_file("0" * 64), encoding="utf-8")
+    assert generated.run(tmp_path).lines == [said]
+    kept.unlink()
+    assert generated.run(tmp_path).lines == [f"{BUNDLE_HASH}: missing (make bundle writes it)"]
+
+
+def test_a_file_beside_the_bundles_hash_and_a_bundle_that_has_no_hash_fail(tmp_path: Path) -> None:
+    written(tmp_path)
+    directory = tmp_path / generated.BUNDLE
+    (tmp_path / BUNDLE_HASH).parent.joinpath("notes.json").write_text("{}\n", encoding="utf-8")
+    assert generated.run(tmp_path).lines == [
+        f"{BUNDLE_HASH}: differs from a fresh generation (make bundle)",
+        "platform/policy/potka/bundle/notes.json: no generator writes it: remove it",
+    ]
+    (tmp_path / BUNDLE_HASH).parent.joinpath("notes.json").unlink()
+    (directory / "tools" / "linked.json").symlink_to(directory / "tools" / "data.json")
+    said = "platform/policy: the bundle holds a link: tools/linked.json"
+    assert said in generated.run(tmp_path).lines
+    outcome = generated.write(tmp_path, "bundle")
+    assert (outcome.status, outcome.lines) == ("failed", [said])
+
+
+def test_writing_the_tools_writes_the_bundles_hash_too(tmp_path: Path) -> None:
+    written(tmp_path)
+    registry = tmp_path / generated.REGISTRY
+    before = (tmp_path / BUNDLE_HASH).read_text(encoding="utf-8")
+    (registry / "VERSION").write_text("3\n", encoding="utf-8")
+    assert generated.write(tmp_path, "tools").status == "passed"
+    assert (tmp_path / BUNDLE_HASH).read_text(encoding="utf-8") != before
+    assert generated.run(tmp_path).status == "skipped"
 
 
 def test_the_table_is_written_and_compared_with_the_checkout(checkout: tuple[Path, Path]) -> None:
@@ -277,7 +340,7 @@ def test_the_table_is_written_and_compared_with_the_checkout(checkout: tuple[Pat
     outcome = generated.run(root, repo)
     assert (outcome.status, outcome.lines) == (
         "passed",
-        ["11 generated file(s) match a fresh generation"],
+        ["12 generated file(s) match a fresh generation"],
     )
     assert generated.run(root).status == "skipped"
 
@@ -327,7 +390,7 @@ def test_the_command_line_checks_and_writes(
     monkeypatch.setattr(generated, "extract", lambda root, incus=None: Outcome("passed"))
     assert cli.main(["generated"]) == 2
     out, err = capsys.readouterr()
-    assert out.startswith("10 generated file(s) match a fresh generation; ")
+    assert out.startswith("11 generated file(s) match a fresh generation; ")
     assert err == "generated: skipped\n"
     (root / generated.SCHEMAS / "scenario.schema.json").unlink()
     assert cli.main(["generated", "--infra", str(repo)]) == 1
@@ -343,7 +406,11 @@ def test_the_command_line_checks_and_writes(
     assert capsys.readouterr().out.count("wrote platform/schemas/catalog/") == 4
     (root / TOOLS_PAGE).unlink()
     assert cli.main(["generated", "--write", "tools"]) == 0
-    assert capsys.readouterr().out == "".join(f"wrote {name}\n" for name in COMPILED)
+    assert capsys.readouterr().out == "".join(
+        f"wrote {name}\n" for name in (*COMPILED, BUNDLE_HASH)
+    )
+    assert cli.main(["generated", "--write", "bundle"]) == 0
+    assert capsys.readouterr().out == f"wrote {BUNDLE_HASH}\n"
     (root / PRIMITIVES_PAGE).write_text("by hand\n", encoding="utf-8")
     assert cli.main(["generated", "--infra", str(repo)]) == 1
     assert capsys.readouterr().out == (
@@ -352,7 +419,7 @@ def test_the_command_line_checks_and_writes(
     assert cli.main(["generated", "--write", "primitives"]) == 0
     assert capsys.readouterr().out == f"wrote {PRIMITIVES_PAGE}\n"
     assert cli.main(["generated", "--infra", str(repo)]) == 0
-    assert capsys.readouterr().out == "11 generated file(s) match a fresh generation\n"
+    assert capsys.readouterr().out == "12 generated file(s) match a fresh generation\n"
     with pytest.raises(SystemExit):
         cli.main(["generated", "--write", "everything"])
 
@@ -360,7 +427,7 @@ def test_the_command_line_checks_and_writes(
 RECORDER = "import json, sys\njson.dump(sys.argv[2:], open(sys.argv[1], 'w'))\n"
 
 
-@pytest.mark.parametrize("target", ["tools", "primitives"])
+@pytest.mark.parametrize("target", ["tools", "primitives", "bundle"])
 def test_make_writes_what_the_registry_and_the_library_are_compiled_to(
     tmp_path: Path, target: str
 ) -> None:

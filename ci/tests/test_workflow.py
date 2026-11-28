@@ -65,6 +65,17 @@ def test_the_generated_job_compares_with_the_infrastructure_at_the_pin() -> None
     assert not [step for step in job["steps"] if "continue-on-error" in step or "if" in step]
 
 
+def test_the_test_job_installs_the_lab_s_opa_before_the_policy_s_cases_and_the_tests() -> None:
+    # Without the binary the policy check fails in CI and the tests that need it skip,
+    # which fails the job too: the job must install it first, and nothing may let it pass.
+    workflow = yaml.safe_load((WORKFLOWS / "ci.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["test"]
+    scripts = [step["run"] for step in job["steps"] if "run" in step]
+    assert scripts[-1] == "make setup opa policy test"
+    assert "continue-on-error" not in job
+    assert not [step for step in job["steps"] if "continue-on-error" in step or "if" in step]
+
+
 def test_the_walk_finds_an_expression_in_a_run_script() -> None:
     workflow = yaml.safe_load(
         "jobs:\n  a:\n    steps:\n      - run: echo ok\n      - run: echo ${{ github.ref_name }}\n"

@@ -56,6 +56,10 @@ jobs:
     # The tests require its major version and may not skip (ci/ci-skips.json).
     # Some tests compare with pokus-infrastructure's files at INFRA_PIN (its
     # restricted-schema check and its role names), checked out next to it.
+    # The policy's cases and the tests that ask a policy engine run the lab's
+    # OPA: make opa fetches the binary platform/tests/opa/opa.lock names (the
+    # contract job compares the lock with pokus-infrastructure's versions
+    # page) and lets it run only after its sha256 matched.
     services:
       postgres:
         image: docker.io/library/postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
@@ -91,7 +95,7 @@ jobs:
         with:
           version: "0.12.23"
           enable-cache: false
-      - run: make setup test
+      - run: make setup opa policy test
 
   generated:
     runs-on: ubuntu-24.04
